@@ -5,6 +5,7 @@ import { IdeaStatus } from '../enums/IdeaStatus';
 import { CreateCommentDto } from '../dto/comment.dto';
 import { NotificationService } from './notification.service';
 import { NotificationType } from '../enums/NotificationType';
+import { PaginationDto } from '../dto/common.dto';
 
 export class CommentService {
   private commentRepository = AppDataSource.getRepository(Comment);
@@ -72,6 +73,65 @@ export class CommentService {
     }
 
     return savedComment;
+  }
+
+  async getCommentsByUserId(userId: string, pagination: PaginationDto): Promise<{
+    comments: (Comment & { idea?: Idea })[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const { page = 1, limit = 10 } = pagination;
+    const skip = (page - 1) * limit;
+
+    const [comments, total] = await this.commentRepository.findAndCount({
+      where: { userId },
+      relations: ['user', 'idea'],
+      order: { createdAt: 'DESC' },
+      skip,
+      take: limit,
+    });
+
+    // Only include comments on published ideas, clean user data
+    const cleanedComments = comments
+      .filter((comment) => comment.idea && comment.idea.status === IdeaStatus.PUBLISHED)
+      .map((comment) => {
+        let userWithoutPassword = comment.user;
+        if (comment.user && 'password' in comment.user) {
+          const { password, ...rest } = comment.user as any;
+          userWithoutPassword = rest;
+        }
+        
+        // Format profile picture URL if exists
+        if (userWithoutPassword && (userWithoutPassword as any).profilePicture) {
+          const profilePic = (userWithoutPassword as any).profilePicture;
+          if (!profilePic.startsWith('/api/')) {
+            (userWithoutPassword as any).profilePicture = `/api/uploads/profile-pictures/${profilePic}`;
+          }
+        }
+
+        // Clean idea data (remove password from idea.user if exists)
+        let ideaData = comment.idea;
+        if (ideaData && ideaData.user && 'password' in ideaData.user) {
+          const { password, ...rest } = ideaData.user as any;
+          ideaData = { ...ideaData, user: rest };
+        }
+
+        return {
+          ...comment,
+          user: userWithoutPassword,
+          idea: ideaData,
+        };
+      });
+
+    return {
+      comments: cleanedComments as any,
+      total: cleanedComments.length,
+      page,
+      limit,
+      totalPages: Math.ceil(cleanedComments.length / limit),
+    };
   }
 }
 

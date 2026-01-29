@@ -62,6 +62,7 @@ export class IdeaService {
         'user.email',
         'user.firstName',
         'user.lastName',
+        'user.profilePicture',
       ])
       .addSelect('COUNT(DISTINCT like.id)', 'likesCount')
       .addSelect('COUNT(DISTINCT comment.id)', 'commentsCount')
@@ -93,6 +94,11 @@ export class IdeaService {
           email: raw.user_email,
           firstName: raw.user_firstName,
           lastName: raw.user_lastName,
+          profilePicture: raw.user_profilePicture 
+            ? (raw.user_profilePicture.startsWith('/api/') 
+                ? raw.user_profilePicture 
+                : `/api/uploads/profile-pictures/${raw.user_profilePicture}`)
+            : null,
         },
         likesCount: parseInt(raw.likesCount) || 0,
         commentsCount: parseInt(raw.commentsCount) || 0,
@@ -131,12 +137,19 @@ export class IdeaService {
       take: limit,
     });
 
-    // Remove password from user objects and add counts
+    // Remove password from user objects, format profile picture URLs, and add counts
     const ideasWithCounts = ideas.map((idea) => {
       let userWithoutPassword = idea.user;
       if (idea.user && 'password' in idea.user) {
         const { password, ...rest } = idea.user as any;
         userWithoutPassword = rest;
+      }
+      // Format profile picture URL if exists
+      if (userWithoutPassword && (userWithoutPassword as any).profilePicture) {
+        const profilePic = (userWithoutPassword as any).profilePicture;
+        if (!profilePic.startsWith('/api/')) {
+          (userWithoutPassword as any).profilePicture = `/api/uploads/profile-pictures/${profilePic}`;
+        }
       }
       return {
         ...idea,
@@ -178,9 +191,13 @@ export class IdeaService {
       }
     }
 
-    // Remove passwords from user objects
+    // Remove passwords from user objects and format profile picture URLs
     if (idea.user && 'password' in idea.user) {
       const { password, ...userWithoutPassword } = idea.user as any;
+      // Format profile picture URL if exists
+      if (userWithoutPassword.profilePicture && !userWithoutPassword.profilePicture.startsWith('/api/')) {
+        userWithoutPassword.profilePicture = `/api/uploads/profile-pictures/${userWithoutPassword.profilePicture}`;
+      }
       idea.user = userWithoutPassword as any;
     }
 
@@ -192,13 +209,24 @@ export class IdeaService {
       order: { createdAt: 'ASC' },
     });
 
-    // Helper function to remove password from user
+    // Helper function to remove password from user and format profile picture URL
     const cleanUser = (user: any): any => {
-      if (user && 'password' in user) {
-        const { password, ...userWithoutPassword } = user;
-        return userWithoutPassword;
+      if (!user) return user;
+      
+      let userWithoutPassword = user;
+      if ('password' in user) {
+        const { password, ...rest } = user;
+        userWithoutPassword = rest;
       }
-      return user;
+      
+      // Format profile picture URL if exists
+      if (userWithoutPassword.profilePicture) {
+        if (!userWithoutPassword.profilePicture.startsWith('/api/')) {
+          userWithoutPassword.profilePicture = `/api/uploads/profile-pictures/${userWithoutPassword.profilePicture}`;
+        }
+      }
+      
+      return userWithoutPassword;
     };
 
     // Build comment tree structure recursively
@@ -260,15 +288,23 @@ export class IdeaService {
       take: limit,
     });
 
-    // Remove password from user objects
+    // Remove password from user objects and format profile picture URLs
     const ideasWithoutPassword = ideas.map((idea) => {
       if (idea.user && 'password' in idea.user) {
         const { password, ...userWithoutPassword } = idea.user as any;
+        // Format profile picture URL if exists
+        if (userWithoutPassword.profilePicture && !userWithoutPassword.profilePicture.startsWith('/api/')) {
+          userWithoutPassword.profilePicture = `/api/uploads/profile-pictures/${userWithoutPassword.profilePicture}`;
+        }
         idea.user = userWithoutPassword as any;
       }
       // Remove password from approvedByUser if exists
       if (idea.approvedByUser && 'password' in idea.approvedByUser) {
         const { password, ...adminWithoutPassword } = idea.approvedByUser as any;
+        // Format profile picture URL if exists
+        if (adminWithoutPassword.profilePicture && !adminWithoutPassword.profilePicture.startsWith('/api/')) {
+          adminWithoutPassword.profilePicture = `/api/uploads/profile-pictures/${adminWithoutPassword.profilePicture}`;
+        }
         idea.approvedByUser = adminWithoutPassword as any;
       }
       return idea;
@@ -386,6 +422,58 @@ export class IdeaService {
         const { password, ...rest } = idea.user as any;
         userWithoutPassword = rest;
       }
+      return {
+        ...idea,
+        user: userWithoutPassword,
+        likesCount: idea.likes?.length || 0,
+        commentsCount: idea.comments?.length || 0,
+      };
+    });
+
+    return {
+      ideas: ideasWithCounts as any,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async getIdeasByUserId(userId: string, pagination: PaginationDto): Promise<{
+    ideas: Idea[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const { page = 1, limit = 10 } = pagination;
+    const skip = (page - 1) * limit;
+
+    // Only return PUBLISHED ideas for public profile
+    const [ideas, total] = await this.ideaRepository.findAndCount({
+      where: { userId, status: IdeaStatus.PUBLISHED },
+      relations: ['user', 'likes', 'comments'],
+      order: { createdAt: 'DESC' },
+      skip,
+      take: limit,
+    });
+
+    // Remove password from user objects and add counts
+    const ideasWithCounts = ideas.map((idea) => {
+      let userWithoutPassword = idea.user;
+      if (idea.user && 'password' in idea.user) {
+        const { password, ...rest } = idea.user as any;
+        userWithoutPassword = rest;
+      }
+      
+      // Format profile picture URL if exists
+      if (userWithoutPassword && (userWithoutPassword as any).profilePicture) {
+        const profilePic = (userWithoutPassword as any).profilePicture;
+        if (!profilePic.startsWith('/api/')) {
+          (userWithoutPassword as any).profilePicture = `/api/uploads/profile-pictures/${profilePic}`;
+        }
+      }
+      
       return {
         ...idea,
         user: userWithoutPassword,

@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { CommentService } from '../services/comment.service';
 import { CreateCommentDto } from '../dto/comment.dto';
 import { AuthRequest } from '../middlewares/auth.middleware';
-import { ApiResponse } from '../dto/common.dto';
+import { ApiResponse, PaginationDto } from '../dto/common.dto';
 import { AppDataSource } from '../config/database';
 import { Comment } from '../entities/Comment';
 
@@ -26,16 +26,29 @@ export class CommentController {
         relations: ['user', 'parent', 'parent.user'],
       });
 
-      // Remove password from user
-      if (commentWithRelations && commentWithRelations.user && 'password' in commentWithRelations.user) {
-        const { password, ...userWithoutPassword } = commentWithRelations.user as any;
-        commentWithRelations.user = userWithoutPassword as any;
+      // Helper function to clean user (remove password and format profile picture URL)
+      const cleanUser = (user: any): any => {
+        if (!user) return user;
+        let userWithoutPassword = user;
+        if ('password' in user) {
+          const { password, ...rest } = user;
+          userWithoutPassword = rest;
+        }
+        // Format profile picture URL if exists
+        if (userWithoutPassword.profilePicture && !userWithoutPassword.profilePicture.startsWith('/api/')) {
+          userWithoutPassword.profilePicture = `/api/uploads/profile-pictures/${userWithoutPassword.profilePicture}`;
+        }
+        return userWithoutPassword;
+      };
+
+      // Remove password from user and format profile picture URL
+      if (commentWithRelations && commentWithRelations.user) {
+        commentWithRelations.user = cleanUser(commentWithRelations.user);
       }
 
       // Remove password from parent comment user if exists
-      if (commentWithRelations?.parent?.user && 'password' in commentWithRelations.parent.user) {
-        const { password, ...userWithoutPassword } = commentWithRelations.parent.user as any;
-        commentWithRelations.parent.user = userWithoutPassword as any;
+      if (commentWithRelations?.parent?.user) {
+        commentWithRelations.parent.user = cleanUser(commentWithRelations.parent.user);
       }
 
       const response: ApiResponse<any> = {
@@ -51,6 +64,39 @@ export class CommentController {
       const response: ApiResponse<null> = {
         success: false,
         message: error.message || 'Failed to create comment',
+      };
+      res.status(400).json(response);
+    }
+  }
+
+  async getCommentsByUserId(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { userId } = req.params;
+      const pagination: PaginationDto = {
+        page: parseInt(req.query.page as string) || 1,
+        limit: parseInt(req.query.limit as string) || 10,
+      };
+
+      const result = await commentService.getCommentsByUserId(userId, pagination);
+
+      const response: ApiResponse<any> = {
+        success: true,
+        data: {
+          comments: result.comments,
+          pagination: {
+            page: result.page,
+            limit: result.limit,
+            total: result.total,
+            totalPages: result.totalPages,
+          },
+        },
+      };
+
+      res.status(200).json(response);
+    } catch (error: any) {
+      const response: ApiResponse<null> = {
+        success: false,
+        message: error.message || 'Failed to fetch user comments',
       };
       res.status(400).json(response);
     }

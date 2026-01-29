@@ -31,6 +31,11 @@ router.get('/my-ideas', (req: Request, res: Response) => {
   ideaController.getMyIdeas(req as AuthRequest, res);
 });
 
+// Get ideas by user ID (public profile)
+router.get('/user/:userId', (req: Request, res: Response) => {
+  ideaController.getIdeasByUserId(req as AuthRequest, res);
+});
+
 router.get('/:id', (req: Request, res: Response) => {
   ideaController.getIdeaById(req as AuthRequest, res);
 });

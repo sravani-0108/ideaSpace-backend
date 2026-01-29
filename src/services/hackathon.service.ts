@@ -7,29 +7,25 @@ export class HackathonService {
   private hackathonRepository = AppDataSource.getRepository(Hackathon);
 
   /**
-   * Calculate hackathon status based on current date and hackathon dates
+   * Calculate hackathon status based on current date/time and hackathon dates/times
    */
   private calculateStatus(hackathon: Hackathon): HackathonStatus {
     const now = new Date();
     const startDate = new Date(hackathon.startDate);
     const endDate = new Date(hackathon.endDate);
 
-    // Set time to start of day for accurate comparison
-    now.setHours(0, 0, 0, 0);
-    startDate.setHours(0, 0, 0, 0);
-    endDate.setHours(0, 0, 0, 0);
-
-    // If end date has passed, hackathon is completed
+    // Compare actual date and time (not just dates)
+    // If end date/time has passed, hackathon is completed
     if (endDate < now) {
       return HackathonStatus.COMPLETED;
     }
 
-    // If today is between start and end date, hackathon is active
+    // If current time is between start and end date/time, hackathon is active
     if (startDate <= now && now <= endDate) {
       return HackathonStatus.ACTIVE;
     }
 
-    // If start date is in the future, hackathon is pending (upcoming)
+    // If start date/time is in the future, hackathon is pending (upcoming)
     return HackathonStatus.PENDING;
   }
 
@@ -52,11 +48,8 @@ export class HackathonService {
     const startDate = new Date(createHackathonDto.startDate);
     const endDate = new Date(createHackathonDto.endDate);
     
-    // Calculate initial status based on dates
+    // Calculate initial status based on date/time (considering actual time, not just date)
     const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    startDate.setHours(0, 0, 0, 0);
-    endDate.setHours(0, 0, 0, 0);
     
     let initialStatus = HackathonStatus.PENDING;
     if (endDate < now) {
@@ -169,12 +162,11 @@ export class HackathonService {
     
     // Find the next upcoming or active hackathon
     const now = new Date();
-    now.setHours(0, 0, 0, 0);
     
     const upcomingOrActive = allHackathons
       .filter(h => {
         const endDate = new Date(h.endDate);
-        endDate.setHours(0, 0, 0, 0);
+        // Compare actual date/time, not just date
         return endDate >= now && (h.status === HackathonStatus.PENDING || h.status === HackathonStatus.ACTIVE);
       })
       .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());

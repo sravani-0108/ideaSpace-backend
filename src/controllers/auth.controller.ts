@@ -59,9 +59,24 @@ export class AuthController {
       const loginDto: LoginDto = req.body;
       const result = await authService.login(loginDto.email, loginDto.password);
 
+      // Format profile picture path if exists
+      const profilePicture = result.user.profilePicture 
+        ? (result.user.profilePicture.startsWith('/api/') 
+            ? result.user.profilePicture 
+            : `/api/uploads/profile-pictures/${result.user.profilePicture}`)
+        : null;
+
       const response: ApiResponse<{
         token: string;
-        user: { id: string; email: string; firstName: string; lastName: string; role: string };
+        user: { 
+          id: string; 
+          email: string; 
+          firstName: string; 
+          lastName: string; 
+          role: string;
+          profilePicture: string | null;
+          isEmailVerified: boolean;
+        };
       }> = {
         success: true,
         data: {
@@ -72,6 +87,8 @@ export class AuthController {
             firstName: result.user.firstName,
             lastName: result.user.lastName,
             role: result.user.role,
+            profilePicture: profilePicture,
+            isEmailVerified: result.user.isVerified,
           },
         },
       };

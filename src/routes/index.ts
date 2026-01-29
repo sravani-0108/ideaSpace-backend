@@ -8,6 +8,7 @@ import hackathonRoutes from './hackathon.routes';
 import registrationRoutes from './registration.routes';
 import teamRoutes from './team.routes';
 import meetingRoutes from './meeting.routes';
+import userRoutes from './user.routes';
 
 const router = Router();
 
@@ -20,6 +21,7 @@ router.use('/hackathons', hackathonRoutes);
 router.use('/', registrationRoutes);
 router.use('/', teamRoutes);
 router.use('/', meetingRoutes);
+router.use('/users', userRoutes);
 
 export default router;
 

@@ -161,5 +161,38 @@ export class IdeaController {
       res.status(400).json(response);
     }
   }
+
+  async getIdeasByUserId(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { userId } = req.params;
+      const pagination: PaginationDto = {
+        page: parseInt(req.query.page as string) || 1,
+        limit: parseInt(req.query.limit as string) || 10,
+      };
+
+      const result = await ideaService.getIdeasByUserId(userId, pagination);
+
+      const response: ApiResponse<any> = {
+        success: true,
+        data: {
+          ideas: result.ideas,
+          pagination: {
+            page: result.page,
+            limit: result.limit,
+            total: result.total,
+            totalPages: result.totalPages,
+          },
+        },
+      };
+
+      res.status(200).json(response);
+    } catch (error: any) {
+      const response: ApiResponse<null> = {
+        success: false,
+        message: error.message || 'Failed to fetch user ideas',
+      };
+      res.status(400).json(response);
+    }
+  }
 }
 

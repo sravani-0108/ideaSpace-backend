@@ -38,6 +38,9 @@ export class User extends BaseEntityWithUpdate {
   @Column({ default: false })
   isVerified: boolean;
 
+  @Column({ nullable: true })
+  profilePicture: string;
+
   // Relations
   @OneToOne(() => EmailVerification, verification => verification.user, { cascade: true })
   emailVerification: EmailVerification;
