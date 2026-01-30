@@ -10,6 +10,7 @@ import { Hackathon } from '../entities/Hackathon';
 import { HackathonRegistration } from '../entities/HackathonRegistration';
 import { Team } from '../entities/Team';
 import { Meeting } from '../entities/Meeting';
+import { Project } from '../entities/Project';
 
 console.log("=== Environment Variables ===");
 console.log("DB_HOST:", process.env.DB_HOST);
@@ -33,7 +34,7 @@ export const AppDataSource = new DataSource({
   database: process.env.DB_NAME || 'idea_platform',
   synchronize: process.env.NODE_ENV !== 'production', // Auto-create tables in dev
   logging: process.env.NODE_ENV === 'development',
-  entities: [User, EmailVerification, Idea, Comment, Like, Notification, SavedIdea, Hackathon, HackathonRegistration, Team, Meeting],
+  entities: [User, EmailVerification, Idea, Comment, Like, Notification, SavedIdea, Hackathon, HackathonRegistration, Team, Meeting, Project],
   migrations: ['dist/migrations/**/*.js'],
   migrationsTableName: 'migrations',
   subscribers: [],

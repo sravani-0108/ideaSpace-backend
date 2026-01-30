@@ -36,6 +36,11 @@ router.get('/user/:userId', (req: Request, res: Response) => {
   ideaController.getIdeasByUserId(req as AuthRequest, res);
 });
 
+// Get ideas for Hands-On hackathon (with visibility rules)
+router.get('/hackathon/:hackathonId', (req: Request, res: Response) => {
+  ideaController.getHandsOnHackathonIdeas(req as AuthRequest, res);
+});
+
 router.get('/:id', (req: Request, res: Response) => {
   ideaController.getIdeaById(req as AuthRequest, res);
 });

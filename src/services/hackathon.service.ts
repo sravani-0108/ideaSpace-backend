@@ -1,6 +1,7 @@
 import { AppDataSource } from '../config/database';
 import { Hackathon } from '../entities/Hackathon';
 import { HackathonStatus } from '../enums/HackathonStatus';
+import { HackathonType } from '../enums/HackathonType';
 import { CreateHackathonDto, UpdateHackathonDto } from '../dto/hackathon.dto';
 
 export class HackathonService {
@@ -67,6 +68,14 @@ export class HackathonService {
       registrationDeadline: createHackathonDto.registrationDeadline 
         ? new Date(createHackathonDto.registrationDeadline) 
         : undefined,
+      // Hands-On Hackathon fields
+      hackathonType: createHackathonDto.hackathonType || HackathonType.LEARNING,
+      registrationStartDate: createHackathonDto.registrationStartDate
+        ? new Date(createHackathonDto.registrationStartDate)
+        : undefined,
+      registrationEndDate: createHackathonDto.registrationEndDate
+        ? new Date(createHackathonDto.registrationEndDate)
+        : undefined,
       location: createHackathonDto.location,
       onlineLink: createHackathonDto.onlineLink || undefined,
       status: initialStatus,
@@ -122,6 +131,18 @@ export class HackathonService {
     if (updateHackathonDto.registrationDeadline !== undefined) {
       hackathon.registrationDeadline = updateHackathonDto.registrationDeadline 
         ? new Date(updateHackathonDto.registrationDeadline) 
+        : (null as any);
+    }
+    // Hands-On Hackathon fields
+    if (updateHackathonDto.hackathonType !== undefined) hackathon.hackathonType = updateHackathonDto.hackathonType;
+    if (updateHackathonDto.registrationStartDate !== undefined) {
+      hackathon.registrationStartDate = updateHackathonDto.registrationStartDate
+        ? new Date(updateHackathonDto.registrationStartDate)
+        : (null as any);
+    }
+    if (updateHackathonDto.registrationEndDate !== undefined) {
+      hackathon.registrationEndDate = updateHackathonDto.registrationEndDate
+        ? new Date(updateHackathonDto.registrationEndDate)
         : (null as any);
     }
     if (updateHackathonDto.location) hackathon.location = updateHackathonDto.location;

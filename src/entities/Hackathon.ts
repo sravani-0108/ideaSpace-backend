@@ -6,6 +6,7 @@ import {
   JoinColumn
 } from 'typeorm';
 import { HackathonStatus } from '../enums/HackathonStatus';
+import { HackathonType } from '../enums/HackathonType';
 import { BaseEntityWithUpdate } from './BaseEntity';
 import { User } from './User';
 
@@ -31,6 +32,20 @@ export class Hackathon extends BaseEntityWithUpdate {
 
   @Column({ type: 'timestamp', nullable: true })
   registrationDeadline?: Date;
+
+  // Hands-On Hackathon specific fields
+  @Column({ type: 'timestamp', nullable: true })
+  registrationStartDate?: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  registrationEndDate?: Date;
+
+  @Column({
+    type: 'enum',
+    enum: HackathonType,
+    default: HackathonType.LEARNING
+  })
+  hackathonType: HackathonType;
 
   @Column()
   location: string;

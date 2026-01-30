@@ -19,7 +19,7 @@ export class IdeaController {
       const response: ApiResponse<any> = {
         success: true,
         data: idea,
-        message: userRole === UserRole.ADMIN 
+        message: userRole === UserRole.ADMIN || userRole === UserRole.JUDGE 
           ? 'Idea created and automatically published.' 
           : 'Idea created successfully. Waiting for admin approval.',
       };
@@ -190,6 +190,45 @@ export class IdeaController {
       const response: ApiResponse<null> = {
         success: false,
         message: error.message || 'Failed to fetch user ideas',
+      };
+      res.status(400).json(response);
+    }
+  }
+
+  async getHandsOnHackathonIdeas(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { hackathonId } = req.params;
+      const pagination: PaginationDto = {
+        page: parseInt(req.query.page as string) || 1,
+        limit: parseInt(req.query.limit as string) || 10,
+      };
+      const userRole = req.user?.role as UserRole;
+
+      const result = await ideaService.getHandsOnHackathonIdeas(
+        hackathonId,
+        req.userId,
+        userRole,
+        pagination
+      );
+
+      const response: ApiResponse<any> = {
+        success: true,
+        data: {
+          ideas: result.ideas,
+          pagination: {
+            page: result.page,
+            limit: result.limit,
+            total: result.total,
+            totalPages: result.totalPages,
+          },
+        },
+      };
+
+      res.status(200).json(response);
+    } catch (error: any) {
+      const response: ApiResponse<null> = {
+        success: false,
+        message: error.message || 'Failed to fetch hackathon ideas',
       };
       res.status(400).json(response);
     }

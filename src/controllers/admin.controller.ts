@@ -3,6 +3,7 @@ import { IdeaService } from '../services/idea.service';
 import { PaginationDto } from '../dto/common.dto';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { ApiResponse } from '../dto/common.dto';
+import { ApproveIdeaDto } from '../dto/idea.dto';
 
 const ideaService = new IdeaService();
 
@@ -43,7 +44,8 @@ export class AdminController {
     try {
       const { id } = req.params;
       const adminId = req.userId!; // Admin's user ID from auth middleware
-      const idea = await ideaService.approveIdea(id, adminId);
+      const approveDto: ApproveIdeaDto = req.body; // May contain projectDeadline
+      const idea = await ideaService.approveIdea(id, adminId, approveDto);
 
       const response: ApiResponse<any> = {
         success: true,
@@ -52,6 +54,7 @@ export class AdminController {
           id: idea.id,
           status: idea.status,
           approvedBy: idea.approvedBy,
+          projectDeadline: idea.projectDeadline,
         },
       };
 
@@ -92,7 +95,8 @@ export class AdminController {
   async rejectIdea(req: AuthRequest, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const idea = await ideaService.rejectIdea(id);
+      const rejectDto: ApproveIdeaDto = req.body; // May contain rejectionReason
+      const idea = await ideaService.rejectIdea(id, rejectDto);
 
       const response: ApiResponse<any> = {
         success: true,

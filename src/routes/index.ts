@@ -9,6 +9,7 @@ import registrationRoutes from './registration.routes';
 import teamRoutes from './team.routes';
 import meetingRoutes from './meeting.routes';
 import userRoutes from './user.routes';
+import projectRoutes from './project.routes';
 
 const router = Router();
 
@@ -22,6 +23,7 @@ router.use('/', registrationRoutes);
 router.use('/', teamRoutes);
 router.use('/', meetingRoutes);
 router.use('/users', userRoutes);
+router.use('/projects', projectRoutes);
 
 export default router;
 

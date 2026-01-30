@@ -38,8 +38,25 @@ export class Idea extends BaseEntityWithUpdate {
   })
   status: IdeaStatus;
 
+  // Link idea to hackathon (for Hands-On hackathons)
+  @Column({ nullable: true })
+  hackathonId?: string;
+
+  @ManyToOne(() => {
+    const { Hackathon } = require('./Hackathon');
+    return Hackathon;
+  }, { nullable: true })
+  @JoinColumn({ name: 'hackathonId' })
+  hackathon?: any;
+
   @Column({ nullable: true })
   approvedBy?: string;
+
+  @Column({ nullable: true })
+  rejectionReason?: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  projectDeadline?: Date;
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'approvedBy' })
