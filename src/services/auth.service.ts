@@ -54,14 +54,8 @@ export class AuthService {
 
     // Send verification email
     try {
-      console.log('📧 Sending verification email to:', user.email);
-      console.log('OTP Code:', otp);
       await sendVerificationOTP(user.email, otp);
-      console.log('✅ Verification email sent successfully');
     } catch (error: any) {
-      console.error('❌ Failed to send verification email:');
-      console.error('Error:', error.message);
-      console.error('User can use "Resend OTP" feature once email is configured');
       // Don't throw error, user can request resend
     }
 
@@ -177,13 +171,8 @@ export class AuthService {
 
     // Send verification email
     try {
-      console.log('📧 Resending verification email to:', user.email);
-      console.log('New OTP Code:', otp);
       await sendVerificationOTP(user.email, otp);
-      console.log('✅ Verification email resent successfully');
     } catch (error: any) {
-      console.error('❌ Failed to resend verification email:');
-      console.error('Error:', error.message);
       throw error; // Re-throw for resend OTP endpoint
     }
   }

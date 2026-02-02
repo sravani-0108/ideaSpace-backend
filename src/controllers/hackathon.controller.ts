@@ -31,7 +31,8 @@ export class HackathonController {
 
   async getAllHackathons(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const hackathons = await hackathonService.getAllHackathons();
+      const userRole = req.user?.role as string;
+      const hackathons = await hackathonService.getAllHackathons(userRole);
 
       const response: ApiResponse<any> = {
         success: true,
@@ -51,7 +52,8 @@ export class HackathonController {
   async getHackathonById(req: AuthRequest, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const hackathon = await hackathonService.getHackathonById(id);
+      const userRole = req.user?.role as string;
+      const hackathon = await hackathonService.getHackathonById(id, userRole);
 
       const response: ApiResponse<any> = {
         success: true,

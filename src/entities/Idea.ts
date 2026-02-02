@@ -34,12 +34,47 @@ export class Idea extends BaseEntityWithUpdate {
   @Column({
     type: 'enum',
     enum: IdeaStatus,
+    enumName: 'idea_status_enum',
     default: IdeaStatus.PENDING
   })
   status: IdeaStatus;
 
+  // Link idea to hackathon (for Hands-On hackathons)
+  @Column({ type: 'uuid', nullable: true })
+  hackathonId?: string;
+
+  @ManyToOne(() => {
+    const { Hackathon } = require('./Hackathon');
+    return Hackathon;
+  }, { nullable: true })
+  @JoinColumn({ name: 'hackathonId' })
+  hackathon?: any;
+
   @Column({ nullable: true })
   approvedBy?: string;
+
+  @Column({ nullable: true })
+  rejectionReason?: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  projectDeadline?: Date;
+
+  // Status deadline for Hands-On hackathon ideas (for PITCHING, ENHANCEMENTS, IMPLEMENTATION)
+  @Column({ type: 'timestamp', nullable: true })
+  statusDeadline?: Date;
+
+  // File uploads for Hands-On hackathon ideas
+  @Column({ nullable: true })
+  gitRepositoryUrl?: string;
+
+  @Column({ nullable: true })
+  documentationUrl?: string;
+
+  @Column({ nullable: true })
+  videoUrl?: string;
+
+  @Column({ nullable: true })
+  zipFilePath?: string;
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'approvedBy' })

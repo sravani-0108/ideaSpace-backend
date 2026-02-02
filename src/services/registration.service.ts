@@ -2,6 +2,7 @@ import { AppDataSource } from '../config/database';
 import { HackathonRegistration } from '../entities/HackathonRegistration';
 import { Hackathon } from '../entities/Hackathon';
 import { HackathonStatus } from '../enums/HackathonStatus';
+import { HackathonType } from '../enums/HackathonType';
 import { NotificationService } from './notification.service';
 import { NotificationType } from '../enums/NotificationType';
 
@@ -21,17 +22,39 @@ export class RegistrationService {
     const { HackathonService } = await import('./hackathon.service');
     const hackathonService = new HackathonService();
     
-    // Update hackathon status based on current dates before checking registration
-    const updatedHackathon = await hackathonService.updateStatusIfNeeded(hackathon);
-
-    // Check if hackathon is completed (can't register for completed hackathons)
-    if (updatedHackathon.status === HackathonStatus.COMPLETED) {
-      throw new Error('Cannot register for completed hackathon');
+    // Update hackathon status for Learning hackathons only
+    let updatedHackathon = hackathon;
+    if (hackathon.hackathonType === HackathonType.LEARNING) {
+      updatedHackathon = await hackathonService.updateStatusIfNeeded(hackathon);
     }
 
-    // Check if registration deadline has passed
-    if (updatedHackathon.registrationDeadline && new Date() > updatedHackathon.registrationDeadline) {
-      throw new Error('Registration deadline has passed');
+    // For Hands-On hackathons, check status and registration dates
+    if (updatedHackathon.hackathonType === HackathonType.HANDS_ON) {
+      if (updatedHackathon.status !== HackathonStatus.OPEN) {
+        if (updatedHackathon.status === HackathonStatus.DRAFT) {
+          throw new Error('Hackathon is not yet open for registration');
+        } else if (updatedHackathon.status === HackathonStatus.CLOSED) {
+          throw new Error('Hackathon is closed. Registration is no longer accepted');
+        } else {
+          throw new Error('Hackathon is not open for registration');
+        }
+      }
+      
+      // Check registration deadline
+      const now = new Date();
+      if (updatedHackathon.registrationDeadline && now > new Date(updatedHackathon.registrationDeadline)) {
+        throw new Error('Registration deadline has passed');
+      }
+    } else {
+      // For Learning hackathons, check if completed
+      if (updatedHackathon.status === HackathonStatus.COMPLETED) {
+        throw new Error('Cannot register for completed hackathon');
+      }
+
+      // Check if registration deadline has passed
+      if (updatedHackathon.registrationDeadline && new Date() > updatedHackathon.registrationDeadline) {
+        throw new Error('Registration deadline has passed');
+      }
     }
 
     // Check if already registered
@@ -55,7 +78,6 @@ export class RegistrationService {
       userId,
       hackathonId
     ).catch((error) => {
-      console.error('Failed to create registration notification:', error);
       // Don't throw - notification failure shouldn't break registration
     });
 

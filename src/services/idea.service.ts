@@ -1,27 +1,119 @@
 import { AppDataSource } from '../config/database';
 import { Idea } from '../entities/Idea';
 import { Comment } from '../entities/Comment';
+import { Hackathon } from '../entities/Hackathon';
+import { Project } from '../entities/Project';
 import { IdeaStatus } from '../enums/IdeaStatus';
+import { ProjectStatus } from '../enums/ProjectStatus';
 import { UserRole } from '../enums/UserRole';
-import { CreateIdeaDto } from '../dto/idea.dto';
+import { HackathonType } from '../enums/HackathonType';
+import { HackathonStatus } from '../enums/HackathonStatus';
+import { CreateIdeaDto, ApproveIdeaDto } from '../dto/idea.dto';
 import { PaginationDto } from '../dto/common.dto';
 
 export class IdeaService {
   private ideaRepository = AppDataSource.getRepository(Idea);
 
   async createIdea(userId: string, createIdeaDto: CreateIdeaDto, userRole?: UserRole): Promise<Idea> {
-    // Admin ideas are automatically approved and published, regular users go to PENDING
-    const status = userRole === UserRole.ADMIN ? IdeaStatus.PUBLISHED : IdeaStatus.PENDING;
+    // If this is for a Hands-On hackathon, validate registration period
+    if (createIdeaDto.hackathonId) {
+      const hackathonRepository = AppDataSource.getRepository(Hackathon);
+      const hackathon = await hackathonRepository.findOne({
+        where: { id: createIdeaDto.hackathonId },
+      });
+
+      if (!hackathon) {
+        throw new Error('Hackathon not found');
+      }
+
+      if (hackathon.hackathonType !== HackathonType.HANDS_ON) {
+        throw new Error('Ideas can only be submitted for Hands-On hackathons');
+      }
+
+      // For Hands-On hackathons, check if status is OPEN
+      if (hackathon.status !== HackathonStatus.OPEN) {
+        if (hackathon.status === HackathonStatus.DRAFT) {
+          throw new Error('Hackathon is not yet open for submissions');
+        } else if (hackathon.status === HackathonStatus.CLOSED) {
+          throw new Error('Hackathon is closed. Submissions are no longer accepted');
+        } else {
+          throw new Error('Hackathon is not open for submissions');
+        }
+      }
+
+      // Check if user already has an idea for this hackathon - if so, update it instead
+      const existingIdea = await this.ideaRepository.findOne({
+        where: {
+          userId,
+          hackathonId: createIdeaDto.hackathonId,
+        },
+      });
+
+      if (existingIdea) {
+        // If user has existing idea, they can always update it (they're already registered)
+        // No need to check registration deadline
+        // Update existing idea - reset status to PENDING if it was rejected
+        existingIdea.title = createIdeaDto.title;
+        existingIdea.description = createIdeaDto.description;
+        // Update file uploads if provided
+        if (createIdeaDto.gitRepositoryUrl !== undefined) {
+          existingIdea.gitRepositoryUrl = createIdeaDto.gitRepositoryUrl;
+        }
+        if (createIdeaDto.documentationUrl !== undefined) {
+          existingIdea.documentationUrl = createIdeaDto.documentationUrl;
+        }
+        if (createIdeaDto.videoUrl !== undefined) {
+          existingIdea.videoUrl = createIdeaDto.videoUrl;
+        }
+        if (createIdeaDto.zipFilePath !== undefined) {
+          existingIdea.zipFilePath = createIdeaDto.zipFilePath;
+        }
+        // If idea was rejected, reset to PENDING for re-review
+        if (existingIdea.status === IdeaStatus.REJECTED) {
+          existingIdea.status = IdeaStatus.PENDING;
+          existingIdea.rejectionReason = undefined;
+        }
+        return await this.ideaRepository.save(existingIdea);
+      }
+
+      // For new submissions, check if user is registered
+      // If NOT registered, check registration deadline
+      const { RegistrationService } = await import('./registration.service');
+      const registrationService = new RegistrationService();
+      const isRegistered = await registrationService.isUserRegistered(createIdeaDto.hackathonId, userId);
+      
+      if (!isRegistered) {
+        // Check if registration deadline has passed
+        const now = new Date();
+        if (hackathon.registrationDeadline && now > new Date(hackathon.registrationDeadline)) {
+          throw new Error('Idea submission deadline has passed. Please register before the deadline.');
+        }
+      }
+      // If registered, allow submission regardless of registration deadline
+    }
+
+    // Admin/Judge ideas are automatically approved and published, regular users go to PENDING
+    // For Hands-On hackathons, all ideas start as PENDING regardless of role
+    const isHandsOnHackathon = !!createIdeaDto.hackathonId;
+    const isAdminOrJudge = userRole === UserRole.ADMIN || userRole === UserRole.JUDGE;
+    const status = (isAdminOrJudge && !isHandsOnHackathon) 
+      ? IdeaStatus.PUBLISHED 
+      : IdeaStatus.PENDING;
     
     const ideaData: Partial<Idea> = {
       userId,
       title: createIdeaDto.title,
       description: createIdeaDto.description,
       status,
+      hackathonId: createIdeaDto.hackathonId,
+      gitRepositoryUrl: createIdeaDto.gitRepositoryUrl,
+      documentationUrl: createIdeaDto.documentationUrl,
+      videoUrl: createIdeaDto.videoUrl,
+      zipFilePath: createIdeaDto.zipFilePath,
     };
 
-    // If admin creates idea, set approvedBy to admin's ID
-    if (userRole === UserRole.ADMIN) {
+    // If admin/judge creates idea (and not for Hands-On hackathon), set approvedBy to admin's/judge's ID
+    if (isAdminOrJudge && !isHandsOnHackathon) {
       ideaData.approvedBy = userId;
     }
 
@@ -44,12 +136,17 @@ export class IdeaService {
     const skip = (page - 1) * limit;
 
     // Use query builder for efficient aggregation
+    // Exclude Hands-On hackathon ideas (they should be accessed via hackathon-specific endpoint)
     const queryBuilder = this.ideaRepository
       .createQueryBuilder('idea')
       .leftJoin('idea.user', 'user')
       .leftJoin('idea.likes', 'like')
       .leftJoin('idea.comments', 'comment')
+      .leftJoin('idea.hackathon', 'hackathon')
       .where('idea.status = :status', { status: IdeaStatus.PUBLISHED })
+      .andWhere('(idea.hackathonId IS NULL OR hackathon.hackathonType != :handsOnType)', { 
+        handsOnType: HackathonType.HANDS_ON 
+      })
       .select([
         'idea.id',
         'idea.userId',
@@ -168,13 +265,14 @@ export class IdeaService {
     };
   }
 
-  async getIdeaById(id: string, userId?: string): Promise<Idea> {
+  async getIdeaById(id: string, userId?: string, userRole?: UserRole): Promise<Idea> {
     const idea = await this.ideaRepository.findOne({
       where: { id },
       relations: [
         'user',
         'likes',
         'likes.user',
+        'hackathon', // Include hackathon relation for Hands-On hackathon checks
       ],
     });
 
@@ -182,9 +280,13 @@ export class IdeaService {
       throw new Error('Idea not found');
     }
 
+    // Check if user is Admin or Judge
+    const isAdminOrJudge = userRole === UserRole.ADMIN || userRole === UserRole.JUDGE;
+
     // Only return published ideas to regular users
     // But allow users to see their own PENDING/APPROVED ideas
-    if (idea.status !== IdeaStatus.PUBLISHED) {
+    // Admins/Judges can see all ideas regardless of status
+    if (idea.status !== IdeaStatus.PUBLISHED && !isAdminOrJudge) {
       // If user is not the owner, don't show non-published ideas
       if (!userId || idea.userId !== userId) {
         throw new Error('Idea not found');
@@ -280,13 +382,18 @@ export class IdeaService {
     const { page = 1, limit = 10 } = pagination;
     const skip = (page - 1) * limit;
 
-    const [ideas, total] = await this.ideaRepository.findAndCount({
-      where: { status: IdeaStatus.PENDING },
-      relations: ['user', 'approvedByUser'],
-      order: { createdAt: 'ASC' },
-      skip,
-      take: limit,
-    });
+    // Use query builder to ensure hackathon relation is loaded even if null
+    const queryBuilder = this.ideaRepository
+      .createQueryBuilder('idea')
+      .leftJoinAndSelect('idea.user', 'user')
+      .leftJoinAndSelect('idea.approvedByUser', 'approvedByUser')
+      .leftJoinAndSelect('idea.hackathon', 'hackathon')
+      .where('idea.status = :status', { status: IdeaStatus.PENDING })
+      .orderBy('idea.createdAt', 'ASC')
+      .skip(skip)
+      .take(limit);
+
+    const [ideas, total] = await queryBuilder.getManyAndCount();
 
     // Remove password from user objects and format profile picture URLs
     const ideasWithoutPassword = ideas.map((idea) => {
@@ -319,8 +426,11 @@ export class IdeaService {
     };
   }
 
-  async approveIdea(id: string, adminId: string): Promise<Idea> {
-    const idea = await this.ideaRepository.findOne({ where: { id } });
+  async approveIdea(id: string, adminId: string, approveDto?: ApproveIdeaDto): Promise<Idea> {
+    const idea = await this.ideaRepository.findOne({ 
+      where: { id },
+      relations: ['hackathon'],
+    });
 
     if (!idea) {
       throw new Error('Idea not found');
@@ -332,6 +442,12 @@ export class IdeaService {
 
     idea.status = IdeaStatus.APPROVED;
     idea.approvedBy = adminId;
+    
+    // For Hands-On hackathons, set project deadline if provided
+    if (approveDto?.projectDeadline) {
+      idea.projectDeadline = new Date(approveDto.projectDeadline);
+    }
+    
     const savedIdea = await this.ideaRepository.save(idea);
 
     // Send notification to idea creator
@@ -345,7 +461,6 @@ export class IdeaService {
       );
     } catch (error) {
       // Don't fail if notification creation fails
-      console.error('Failed to create approval notification:', error);
     }
 
     return savedIdea;
@@ -366,7 +481,7 @@ export class IdeaService {
     return await this.ideaRepository.save(idea);
   }
 
-  async rejectIdea(id: string): Promise<Idea> {
+  async rejectIdea(id: string, rejectDto?: ApproveIdeaDto): Promise<Idea> {
     const idea = await this.ideaRepository.findOne({ where: { id } });
 
     if (!idea) {
@@ -378,6 +493,12 @@ export class IdeaService {
     }
 
     idea.status = IdeaStatus.REJECTED;
+    
+    // Add rejection reason if provided
+    if (rejectDto?.rejectionReason) {
+      idea.rejectionReason = rejectDto.rejectionReason;
+    }
+    
     const savedIdea = await this.ideaRepository.save(idea);
 
     // Send notification to idea creator
@@ -391,10 +512,213 @@ export class IdeaService {
       );
     } catch (error) {
       // Don't fail if notification creation fails
-      console.error('Failed to create rejection notification:', error);
     }
 
     return savedIdea;
+  }
+
+  /**
+   * Update idea status (for Hands-On hackathons)
+   * Allows updating status to UNDER_REVIEW, PITCHING, ENHANCEMENTS, IMPLEMENTATION, COMPLETED
+   */
+  async updateIdeaStatus(
+    id: string, 
+    newStatus: IdeaStatus, 
+    statusDeadline?: Date,
+    adminId?: string
+  ): Promise<Idea> {
+    const idea = await this.ideaRepository.findOne({ 
+      where: { id },
+      relations: ['hackathon'],
+    });
+
+    if (!idea) {
+      throw new Error('Idea not found');
+    }
+
+    // Validate status transition for Hands-On hackathons
+    const handsOnStatuses = [
+      IdeaStatus.UNDER_REVIEW,
+      IdeaStatus.PITCHING,
+      IdeaStatus.ENHANCEMENTS,
+      IdeaStatus.IMPLEMENTATION,
+      IdeaStatus.COMPLETED,
+      IdeaStatus.REJECTED
+    ];
+
+    // Check if this is a Hands-On hackathon idea
+    if (idea.hackathonId) {
+      if (idea.hackathon) {
+        if (idea.hackathon.hackathonType !== HackathonType.HANDS_ON) {
+          throw new Error('Status updates are only allowed for Hands-On hackathon ideas');
+        }
+      } else {
+        // If hackathon relation is not loaded, fetch it
+        const hackathonRepository = AppDataSource.getRepository(Hackathon);
+        const hackathon = await hackathonRepository.findOne({ where: { id: idea.hackathonId } });
+        if (hackathon && hackathon.hackathonType !== HackathonType.HANDS_ON) {
+          throw new Error('Status updates are only allowed for Hands-On hackathon ideas');
+        }
+      }
+    }
+
+    if (handsOnStatuses.includes(newStatus)) {
+      idea.status = newStatus;
+      
+      // Set status deadline for statuses that require it
+      if (statusDeadline && (newStatus === IdeaStatus.PITCHING || 
+                             newStatus === IdeaStatus.ENHANCEMENTS || 
+                             newStatus === IdeaStatus.IMPLEMENTATION)) {
+        idea.statusDeadline = statusDeadline;
+      } else if (newStatus === IdeaStatus.COMPLETED || 
+                 newStatus === IdeaStatus.UNDER_REVIEW || 
+                 newStatus === IdeaStatus.REJECTED) {
+        // Clear deadline for COMPLETED, UNDER_REVIEW, and REJECTED
+        // Use null instead of undefined for TypeORM nullable fields
+        idea.statusDeadline = null as any;
+      }
+
+      // Set approvedBy if not already set
+      if (adminId && !idea.approvedBy) {
+        idea.approvedBy = adminId;
+      }
+
+      return await this.ideaRepository.save(idea);
+    }
+
+    throw new Error(`Invalid status transition to ${newStatus}`);
+  }
+
+  /**
+   * Get ideas for Hands-On hackathon with visibility rules
+   * - During registration: Only Admin/Judge can see pending ideas
+   * - After registration: All users can see all ideas
+   */
+  async getHandsOnHackathonIdeas(
+    hackathonId: string, 
+    userId?: string, 
+    userRole?: UserRole,
+    pagination?: PaginationDto
+  ): Promise<{
+    ideas: Idea[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const { page = 1, limit = 10 } = pagination || {};
+    const skip = (page - 1) * limit;
+
+    // Get hackathon to check registration end date
+    const hackathonRepository = AppDataSource.getRepository(Hackathon);
+    const hackathon = await hackathonRepository.findOne({
+      where: { id: hackathonId },
+    });
+
+    if (!hackathon) {
+      throw new Error('Hackathon not found');
+    }
+
+    const now = new Date();
+    const registrationEnded = hackathon.registrationDeadline 
+      ? now > new Date(hackathon.registrationDeadline)
+      : true; // If no registration deadline, assume registration has ended
+
+    // Check if user is Admin or Judge
+    const isAdminOrJudge = userRole === UserRole.ADMIN || userRole === UserRole.JUDGE;
+
+    // Check if user is registered for this hackathon (for visibility rules)
+    let isUserRegistered = false;
+    if (userId) {
+      const { RegistrationService } = await import('./registration.service');
+      const registrationService = new RegistrationService();
+      isUserRegistered = await registrationService.isUserRegistered(hackathonId, userId);
+    }
+
+    // Build query with project join to check project status
+    const queryBuilder = this.ideaRepository
+      .createQueryBuilder('idea')
+      .leftJoinAndSelect('idea.user', 'user')
+      .leftJoinAndSelect('idea.hackathon', 'hackathon')
+      .leftJoin('projects', 'project', 'project.ideaId = idea.id')
+      .where('idea.hackathonId = :hackathonId', { hackathonId });
+
+    // Visibility rules:
+    // 1. Admin/Judge: Can see ALL ideas (including PENDING)
+    // 2. Regular users: 
+    //    - If in a team for this hackathon: Can see ideas from all team members
+    //    - If not in a team: Can see ONLY their own ideas
+
+    if (isAdminOrJudge) {
+      // Admin/Judge can always see all ideas - no filter needed
+    } else {
+      if (userId) {
+        // Check if user is in a team for this hackathon
+        const HackathonRegistration = require('../entities/HackathonRegistration').HackathonRegistration;
+        const registrationRepository = AppDataSource.getRepository(HackathonRegistration);
+        const registration = await registrationRepository.findOne({
+          where: { hackathonId, userId },
+        });
+
+        if (registration && registration.teamId) {
+          // User is in a team - get all team members' ideas
+          const { TeamService } = await import('./team.service');
+          const teamService = new TeamService();
+          const teamMembers = await teamService.getTeamMembers(registration.teamId);
+          const teamMemberIds = teamMembers.map(member => member.userId);
+          
+          if (teamMemberIds.length > 0) {
+            // Show ideas from all team members
+            queryBuilder.andWhere('idea.userId IN (:...teamMemberIds)', { teamMemberIds });
+          } else {
+            // No team members found, show only user's ideas
+            queryBuilder.andWhere('idea.userId = :userId', { userId });
+          }
+        } else {
+          // User is not in a team - show only their own ideas
+          queryBuilder.andWhere('idea.userId = :userId', { userId });
+        }
+      } else {
+        // Not logged in: can't see any ideas
+        queryBuilder.andWhere('1 = 0'); // Always false condition
+      }
+    }
+
+    // Load ideas with pagination
+    const result = await Promise.all([
+      queryBuilder
+        .orderBy('idea.createdAt', 'DESC')
+        .skip(skip)
+        .take(limit)
+        .getMany(),
+      queryBuilder.getCount(),
+    ]);
+    const ideas = result[0];
+    const total = result[1];
+
+    // Remove passwords and format profile pictures
+    const cleanedIdeas = ideas.map((idea) => {
+      let userWithoutPassword = idea.user;
+      if (idea.user && 'password' in idea.user) {
+        const { password, ...rest } = idea.user as any;
+        userWithoutPassword = rest;
+        if (rest.profilePicture && !rest.profilePicture.startsWith('/api/')) {
+          rest.profilePicture = `/api/uploads/profile-pictures/${rest.profilePicture}`;
+        }
+      }
+      return {
+        ...idea,
+        user: userWithoutPassword,
+      };
+    });
+
+    return {
+      ideas: cleanedIdeas,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async getMyIdeas(userId: string, pagination: PaginationDto): Promise<{
@@ -409,7 +733,7 @@ export class IdeaService {
 
     const [ideas, total] = await this.ideaRepository.findAndCount({
       where: { userId },
-      relations: ['user', 'likes', 'comments'],
+      relations: ['user', 'likes', 'comments', 'hackathon'], // Added 'hackathon' relation
       order: { createdAt: 'DESC' },
       skip,
       take: limit,

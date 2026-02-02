@@ -1,6 +1,7 @@
 import { AppDataSource } from '../config/database';
 import { Hackathon } from '../entities/Hackathon';
 import { HackathonStatus } from '../enums/HackathonStatus';
+import { HackathonType } from '../enums/HackathonType';
 import { CreateHackathonDto, UpdateHackathonDto } from '../dto/hackathon.dto';
 
 export class HackathonService {
@@ -8,8 +9,14 @@ export class HackathonService {
 
   /**
    * Calculate hackathon status based on current date/time and hackathon dates/times
+   * Only for Learning hackathons
    */
   private calculateStatus(hackathon: Hackathon): HackathonStatus {
+    // Don't auto-calculate status for Hands-On hackathons (they use DRAFT/OPEN/CLOSED)
+    if (hackathon.hackathonType === HackathonType.HANDS_ON) {
+      return hackathon.status;
+    }
+
     const now = new Date();
     const startDate = new Date(hackathon.startDate);
     const endDate = new Date(hackathon.endDate);
@@ -31,8 +38,14 @@ export class HackathonService {
 
   /**
    * Update hackathon status based on dates if needed
+   * Only for Learning hackathons
    */
   async updateStatusIfNeeded(hackathon: Hackathon): Promise<Hackathon> {
+    // Don't auto-update status for Hands-On hackathons
+    if (hackathon.hackathonType === HackathonType.HANDS_ON) {
+      return hackathon;
+    }
+
     const calculatedStatus = this.calculateStatus(hackathon);
     
     // Only update if status has changed
@@ -44,18 +57,87 @@ export class HackathonService {
     return hackathon;
   }
 
+  /**
+   * Update Hands-On hackathon status based on registration dates and registration count
+   * Rules:
+   * - If registration date has passed AND no one registered → set to CLOSED
+   * - If registration date hasn't passed → set to OPEN (unless manually set to DRAFT)
+   */
+  async updateHandsOnStatusIfNeeded(hackathon: Hackathon): Promise<Hackathon> {
+    // Only process Hands-On hackathons
+    if (hackathon.hackathonType !== HackathonType.HANDS_ON) {
+      return hackathon;
+    }
+
+    // Don't update if status is DRAFT (admin must manually change to OPEN)
+    if (hackathon.status === HackathonStatus.DRAFT) {
+      return hackathon;
+    }
+
+    const now = new Date();
+    let shouldUpdate = false;
+    let newStatus = hackathon.status;
+
+    // Check if registration deadline exists
+    if (hackathon.registrationDeadline) {
+      const deadlineDate = new Date(hackathon.registrationDeadline);
+      
+      if (now > deadlineDate) {
+        // Registration deadline has passed - check if anyone registered
+        const { RegistrationService } = await import('./registration.service');
+        const registrationService = new RegistrationService();
+        const registrations = await registrationService.getRegistrationsByHackathon(hackathon.id);
+        
+        if (registrations.length === 0) {
+          // No registrations and deadline passed → set to CLOSED
+          if (hackathon.status !== HackathonStatus.CLOSED) {
+            newStatus = HackathonStatus.CLOSED;
+            shouldUpdate = true;
+          }
+        }
+        // If there are registrations, keep current status (don't auto-change)
+      } else {
+        // Registration deadline hasn't passed → set to OPEN
+        if (hackathon.status !== HackathonStatus.OPEN) {
+          newStatus = HackathonStatus.OPEN;
+          shouldUpdate = true;
+        }
+      }
+    } else {
+      // No registration end date set - if status is CLOSED, set to OPEN (but keep DRAFT as is)
+      if (hackathon.status === HackathonStatus.CLOSED) {
+        newStatus = HackathonStatus.OPEN;
+        shouldUpdate = true;
+      }
+    }
+
+    if (shouldUpdate) {
+      hackathon.status = newStatus;
+      return await this.hackathonRepository.save(hackathon);
+    }
+    
+    return hackathon;
+  }
+
   async createHackathon(userId: string, createHackathonDto: CreateHackathonDto): Promise<Hackathon> {
     const startDate = new Date(createHackathonDto.startDate);
     const endDate = new Date(createHackathonDto.endDate);
+    const hackathonType = createHackathonDto.hackathonType || HackathonType.LEARNING;
     
-    // Calculate initial status based on date/time (considering actual time, not just date)
-    const now = new Date();
-    
-    let initialStatus = HackathonStatus.PENDING;
-    if (endDate < now) {
-      initialStatus = HackathonStatus.COMPLETED;
-    } else if (startDate <= now && now <= endDate) {
-      initialStatus = HackathonStatus.ACTIVE;
+    // For Hands-On hackathons, use provided status or default to DRAFT
+    // For Learning hackathons, calculate initial status based on date/time
+    let initialStatus: HackathonStatus;
+    if (hackathonType === HackathonType.HANDS_ON) {
+      initialStatus = createHackathonDto.status || HackathonStatus.DRAFT;
+    } else {
+      const now = new Date();
+      if (endDate < now) {
+        initialStatus = HackathonStatus.COMPLETED;
+      } else if (startDate <= now && now <= endDate) {
+        initialStatus = HackathonStatus.ACTIVE;
+      } else {
+        initialStatus = HackathonStatus.PENDING;
+      }
     }
 
     const hackathonData: Partial<Hackathon> = {
@@ -67,6 +149,8 @@ export class HackathonService {
       registrationDeadline: createHackathonDto.registrationDeadline 
         ? new Date(createHackathonDto.registrationDeadline) 
         : undefined,
+      // Hands-On Hackathon fields
+      hackathonType: hackathonType,
       location: createHackathonDto.location,
       onlineLink: createHackathonDto.onlineLink || undefined,
       status: initialStatus,
@@ -77,21 +161,42 @@ export class HackathonService {
     return await this.hackathonRepository.save(hackathon);
   }
 
-  async getAllHackathons(): Promise<Hackathon[]> {
+  async getAllHackathons(userRole?: string): Promise<Hackathon[]> {
     const hackathons = await this.hackathonRepository.find({
       relations: ['creator'],
       order: { startDate: 'DESC' },
     });
 
-    // Update status for all hackathons based on current dates
+    // Update status for both Learning and Hands-On hackathons
     const updatedHackathons = await Promise.all(
-      hackathons.map(hackathon => this.updateStatusIfNeeded(hackathon))
+      hackathons.map(hackathon => {
+        if (hackathon.hackathonType === HackathonType.LEARNING) {
+          // Auto-update status for Learning hackathons
+          return this.updateStatusIfNeeded(hackathon);
+        } else if (hackathon.hackathonType === HackathonType.HANDS_ON) {
+          // Auto-update status for Hands-On hackathons based on registration dates
+          return this.updateHandsOnStatusIfNeeded(hackathon);
+        }
+        return Promise.resolve(hackathon);
+      })
     );
 
-    return updatedHackathons;
+    // Filter out DRAFT Hands-On hackathons for regular users
+    const isAdminOrJudge = userRole === 'ADMIN' || userRole === 'JUDGE';
+    if (isAdminOrJudge) {
+      return updatedHackathons;
+    }
+
+    // Regular users cannot see DRAFT Hands-On hackathons
+    return updatedHackathons.filter(hackathon => {
+      if (hackathon.hackathonType === HackathonType.HANDS_ON && hackathon.status === HackathonStatus.DRAFT) {
+        return false;
+      }
+      return true;
+    });
   }
 
-  async getHackathonById(id: string): Promise<Hackathon> {
+  async getHackathonById(id: string, userRole?: string): Promise<Hackathon> {
     const hackathon = await this.hackathonRepository.findOne({
       where: { id },
       relations: ['creator'],
@@ -101,8 +206,20 @@ export class HackathonService {
       throw new Error('Hackathon not found');
     }
 
-    // Update status based on current dates
-    return await this.updateStatusIfNeeded(hackathon);
+    // Check if regular user is trying to access DRAFT Hands-On hackathon
+    const isAdminOrJudge = userRole === 'ADMIN' || userRole === 'JUDGE';
+    if (!isAdminOrJudge && hackathon.hackathonType === HackathonType.HANDS_ON && hackathon.status === HackathonStatus.DRAFT) {
+      throw new Error('Hackathon not found');
+    }
+
+    // Update status based on hackathon type
+    if (hackathon.hackathonType === HackathonType.LEARNING) {
+      return await this.updateStatusIfNeeded(hackathon);
+    } else if (hackathon.hackathonType === HackathonType.HANDS_ON) {
+      return await this.updateHandsOnStatusIfNeeded(hackathon);
+    }
+
+    return hackathon;
   }
 
   async updateHackathon(id: string, userId: string, updateHackathonDto: UpdateHackathonDto): Promise<Hackathon> {
@@ -124,6 +241,8 @@ export class HackathonService {
         ? new Date(updateHackathonDto.registrationDeadline) 
         : (null as any);
     }
+    // Hands-On Hackathon fields
+    if (updateHackathonDto.hackathonType !== undefined) hackathon.hackathonType = updateHackathonDto.hackathonType;
     if (updateHackathonDto.location) hackathon.location = updateHackathonDto.location;
     if (updateHackathonDto.onlineLink !== undefined) hackathon.onlineLink = updateHackathonDto.onlineLink;
 
@@ -237,7 +356,7 @@ export class HackathonService {
           skipped++; // User already has an unread reminder
         }
       } catch (error) {
-        console.error(`Failed to send reminder to user ${registration.userId}:`, error);
+        // Failed to send reminder
         failed++;
       }
     }

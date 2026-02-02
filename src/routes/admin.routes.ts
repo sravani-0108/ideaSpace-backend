@@ -27,5 +27,9 @@ router.patch('/ideas/:id/publish', (req: Request, res: Response) => {
   adminController.publishIdea(req as AuthRequest, res);
 });
 
+router.patch('/ideas/:id/status', (req: Request, res: Response) => {
+  adminController.updateIdeaStatus(req as AuthRequest, res);
+});
+
 export default router;
 

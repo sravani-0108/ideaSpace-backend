@@ -10,19 +10,8 @@ import { Hackathon } from '../entities/Hackathon';
 import { HackathonRegistration } from '../entities/HackathonRegistration';
 import { Team } from '../entities/Team';
 import { Meeting } from '../entities/Meeting';
+import { Project } from '../entities/Project';
 
-console.log("=== Environment Variables ===");
-console.log("DB_HOST:", process.env.DB_HOST);
-console.log("DB_NAME:", process.env.DB_NAME);
-console.log("DB_USER:", process.env.DB_USER);
-console.log("DB_PASSWORD:", process.env.DB_PASSWORD ? "***" : "undefined");
-console.log("DB_PORT:", process.env.DB_PORT);
-console.log("NODE_ENV:", process.env.NODE_ENV);
-console.log("SMTP_HOST:", process.env.SMTP_HOST);
-console.log("SMTP_PORT:", process.env.SMTP_PORT);
-console.log("SMTP_USER:", process.env.SMTP_USER);
-console.log("SMTP_PASS:", process.env.SMTP_PASS ? "***" : "undefined");
-console.log("=============================");
 
 export const AppDataSource = new DataSource({
   type: 'postgres',
@@ -33,7 +22,7 @@ export const AppDataSource = new DataSource({
   database: process.env.DB_NAME || 'idea_platform',
   synchronize: process.env.NODE_ENV !== 'production', // Auto-create tables in dev
   logging: process.env.NODE_ENV === 'development',
-  entities: [User, EmailVerification, Idea, Comment, Like, Notification, SavedIdea, Hackathon, HackathonRegistration, Team, Meeting],
+  entities: [User, EmailVerification, Idea, Comment, Like, Notification, SavedIdea, Hackathon, HackathonRegistration, Team, Meeting, Project],
   migrations: ['dist/migrations/**/*.js'],
   migrationsTableName: 'migrations',
   subscribers: [],

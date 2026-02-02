@@ -1,4 +1,6 @@
-import { IsString, IsNotEmpty, IsDateString, MinLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsDateString, MinLength, IsOptional, IsEnum } from 'class-validator';
+import { HackathonType } from '../enums/HackathonType';
+import { HackathonStatus } from '../enums/HackathonStatus';
 
 export class CreateHackathonDto {
   @IsString()
@@ -21,6 +23,7 @@ export class CreateHackathonDto {
   endDate: string;
 
   @IsDateString({}, { message: 'Registration deadline must be a valid date' })
+  @IsOptional()
   registrationDeadline?: string;
 
   @IsString()
@@ -29,6 +32,15 @@ export class CreateHackathonDto {
 
   @IsString()
   onlineLink?: string;
+
+  // Hands-On Hackathon fields
+  @IsEnum(HackathonType)
+  @IsOptional()
+  hackathonType?: HackathonType;
+
+  @IsEnum(HackathonStatus)
+  @IsOptional()
+  status?: HackathonStatus;
 }
 
 export class UpdateHackathonDto {
@@ -50,6 +62,7 @@ export class UpdateHackathonDto {
   endDate?: string;
 
   @IsDateString({}, { message: 'Registration deadline must be a valid date' })
+  @IsOptional()
   registrationDeadline?: string;
 
   @IsString()
@@ -57,5 +70,10 @@ export class UpdateHackathonDto {
 
   @IsString()
   onlineLink?: string;
+
+  // Hands-On Hackathon fields
+  @IsEnum(HackathonType)
+  @IsOptional()
+  hackathonType?: HackathonType;
 }
 
