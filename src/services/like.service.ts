@@ -43,7 +43,6 @@ export class LikeService {
       this.notificationService
         .createNotification(idea.userId, ideaId, NotificationType.LIKE)
         .catch((error) => {
-          console.error('Failed to create like notification:', error);
           // Don't throw - notification failure shouldn't break like action
         });
     }

@@ -5,13 +5,42 @@ import { PaginationDto } from '../dto/common.dto';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { ApiResponse } from '../dto/common.dto';
 import { UserRole } from '../enums/UserRole';
+import { uploadIdeaFiles } from '../middlewares/upload-idea-files.middleware';
 
 const ideaService = new IdeaService();
 
 export class IdeaController {
   async createIdea(req: AuthRequest, res: Response): Promise<void> {
     try {
-      const createIdeaDto: CreateIdeaDto = req.body;
+      // Check if files are present (from multer middleware)
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+      
+      const createIdeaDto: CreateIdeaDto = {
+        title: req.body.title,
+        description: req.body.description,
+        hackathonId: req.body.hackathonId,
+        gitRepositoryUrl: req.body.gitRepositoryUrl,
+        documentationUrl: files?.documentation?.[0] 
+          ? `/api/uploads/idea-files/${files.documentation[0].filename}` 
+          : req.body.documentationUrl,
+        videoUrl: files?.video?.[0] 
+          ? `/api/uploads/idea-files/${files.video[0].filename}` 
+          : req.body.videoUrl,
+        zipFilePath: files?.zipFile?.[0] 
+          ? `/api/uploads/idea-files/${files.zipFile[0].filename}` 
+          : req.body.zipFilePath,
+      };
+
+      // Basic validation
+      if (!createIdeaDto.title || !createIdeaDto.description) {
+        const response: ApiResponse<null> = {
+          success: false,
+          message: 'Title and description are required',
+        };
+        res.status(400).json(response);
+        return;
+      }
+
       // Get user role from the authenticated user object
       const userRole = req.user?.role as UserRole;
       const idea = await ideaService.createIdea(req.userId!, createIdeaDto, userRole);
@@ -21,7 +50,7 @@ export class IdeaController {
         data: idea,
         message: userRole === UserRole.ADMIN || userRole === UserRole.JUDGE 
           ? 'Idea created and automatically published.' 
-          : 'Idea created successfully. Waiting for admin approval.',
+          : 'Idea submitted successfully. Waiting for admin approval.',
       };
 
       res.status(201).json(response);
@@ -108,8 +137,9 @@ export class IdeaController {
   async getIdeaById(req: AuthRequest, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      // Pass userId so users can see their own REVIEW ideas
-      const idea = await ideaService.getIdeaById(id, req.userId);
+      const userRole = req.user?.role as UserRole;
+      // Pass userId and userRole so users can see their own ideas and admins can see all ideas
+      const idea = await ideaService.getIdeaById(id, req.userId, userRole);
 
       const response: ApiResponse<any> = {
         success: true,

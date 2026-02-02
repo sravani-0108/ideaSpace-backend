@@ -33,16 +33,10 @@ export class Hackathon extends BaseEntityWithUpdate {
   @Column({ type: 'timestamp', nullable: true })
   registrationDeadline?: Date;
 
-  // Hands-On Hackathon specific fields
-  @Column({ type: 'timestamp', nullable: true })
-  registrationStartDate?: Date;
-
-  @Column({ type: 'timestamp', nullable: true })
-  registrationEndDate?: Date;
-
   @Column({
     type: 'enum',
     enum: HackathonType,
+    enumName: 'hackathon_type_enum',
     default: HackathonType.LEARNING
   })
   hackathonType: HackathonType;
@@ -56,6 +50,7 @@ export class Hackathon extends BaseEntityWithUpdate {
   @Column({
     type: 'enum',
     enum: HackathonStatus,
+    enumName: 'hackathon_status_enum',
     default: HackathonStatus.PENDING
   })
   status: HackathonStatus;

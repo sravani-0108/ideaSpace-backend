@@ -44,6 +44,14 @@ app.use('/api/uploads/profile-pictures', (req, res, next) => {
   next();
 }, express.static(path.join(__dirname, '../uploads/profile-pictures')));
 
+// Serve static files for idea files with CORS headers
+app.use('/api/uploads/idea-files', (req, res, next) => {
+  res.header('Access-Control-Allow-Origin', process.env.FRONTEND_URL || 'http://localhost:3000');
+  res.header('Access-Control-Allow-Methods', 'GET');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  next();
+}, express.static(path.join(__dirname, '../uploads/idea-files')));
+
 // API routes
 app.use('/api', routes);
 

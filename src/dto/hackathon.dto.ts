@@ -1,5 +1,6 @@
 import { IsString, IsNotEmpty, IsDateString, MinLength, IsOptional, IsEnum } from 'class-validator';
 import { HackathonType } from '../enums/HackathonType';
+import { HackathonStatus } from '../enums/HackathonStatus';
 
 export class CreateHackathonDto {
   @IsString()
@@ -22,6 +23,7 @@ export class CreateHackathonDto {
   endDate: string;
 
   @IsDateString({}, { message: 'Registration deadline must be a valid date' })
+  @IsOptional()
   registrationDeadline?: string;
 
   @IsString()
@@ -36,13 +38,9 @@ export class CreateHackathonDto {
   @IsOptional()
   hackathonType?: HackathonType;
 
-  @IsDateString({}, { message: 'Registration start date must be a valid date' })
+  @IsEnum(HackathonStatus)
   @IsOptional()
-  registrationStartDate?: string;
-
-  @IsDateString({}, { message: 'Registration end date must be a valid date' })
-  @IsOptional()
-  registrationEndDate?: string;
+  status?: HackathonStatus;
 }
 
 export class UpdateHackathonDto {
@@ -64,6 +62,7 @@ export class UpdateHackathonDto {
   endDate?: string;
 
   @IsDateString({}, { message: 'Registration deadline must be a valid date' })
+  @IsOptional()
   registrationDeadline?: string;
 
   @IsString()
@@ -76,13 +75,5 @@ export class UpdateHackathonDto {
   @IsEnum(HackathonType)
   @IsOptional()
   hackathonType?: HackathonType;
-
-  @IsDateString({}, { message: 'Registration start date must be a valid date' })
-  @IsOptional()
-  registrationStartDate?: string;
-
-  @IsDateString({}, { message: 'Registration end date must be a valid date' })
-  @IsOptional()
-  registrationEndDate?: string;
 }
 

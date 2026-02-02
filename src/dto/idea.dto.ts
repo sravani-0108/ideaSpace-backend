@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, MinLength, MaxLength, IsOptional, IsUUID, IsDateString } from 'class-validator';
+import { IsString, IsNotEmpty, MinLength, MaxLength, IsOptional, IsUUID, IsDateString, IsUrl } from 'class-validator';
 
 export class CreateIdeaDto {
   @IsString()
@@ -16,6 +16,23 @@ export class CreateIdeaDto {
   @IsUUID()
   @IsOptional()
   hackathonId?: string;
+
+  // File uploads for Hands-On hackathon ideas
+  @IsUrl({}, { message: 'Git repository URL must be a valid URL' })
+  @IsOptional()
+  gitRepositoryUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  documentationUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  videoUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  zipFilePath?: string;
 }
 
 export class ApproveIdeaDto {
@@ -26,5 +43,9 @@ export class ApproveIdeaDto {
   @IsDateString({}, { message: 'Project deadline must be a valid date' })
   @IsOptional()
   projectDeadline?: string;
+
+  @IsDateString({}, { message: 'Status deadline must be a valid date' })
+  @IsOptional()
+  statusDeadline?: string;
 }
 

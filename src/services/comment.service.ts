@@ -59,7 +59,7 @@ export class CommentService {
       this.notificationService
         .createNotification(idea.userId, ideaId, NotificationType.COMMENT)
         .catch((error) => {
-          console.error('Failed to create comment notification:', error);
+          // Failed to create comment notification
         });
     }
 
@@ -68,7 +68,7 @@ export class CommentService {
       this.notificationService
         .createNotification(parentComment.userId, ideaId, NotificationType.COMMENT)
         .catch((error) => {
-          console.error('Failed to create reply notification:', error);
+          // Failed to create reply notification
         });
     }
 

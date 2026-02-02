@@ -25,16 +25,26 @@ export class ProjectService {
       throw new Error('You can only submit projects for your own ideas');
     }
 
-    // For Hands-On hackathons, allow submission if idea is APPROVED or PUBLISHED
+    // For Hands-On hackathons, allow submission if idea is in ENHANCEMENTS or IMPLEMENTATION phase
     // For regular ideas, only allow if APPROVED
     const isHandsOnHackathon = idea.hackathonId && idea.hackathon?.hackathonType === HackathonType.HANDS_ON;
-    const isApprovedOrPublished = idea.status === IdeaStatus.APPROVED || idea.status === IdeaStatus.PUBLISHED;
     
     if (isHandsOnHackathon) {
-      if (!isApprovedOrPublished) {
-        throw new Error('Project can only be submitted for approved ideas');
+      // For Hands-On hackathons, allow submission only in ENHANCEMENTS or IMPLEMENTATION phases
+      const canSubmitForHandsOn = idea.status === IdeaStatus.ENHANCEMENTS || idea.status === IdeaStatus.IMPLEMENTATION;
+      if (!canSubmitForHandsOn) {
+        throw new Error('Project can only be submitted during Enhancements or Implementation phase');
+      }
+      
+      // Check if statusDeadline has passed
+      if (idea.statusDeadline) {
+        const now = new Date();
+        if (now > new Date(idea.statusDeadline)) {
+          throw new Error('The deadline for submitting this project has passed');
+        }
       }
     } else {
+      // For regular ideas, only allow if APPROVED
       if (idea.status !== IdeaStatus.APPROVED) {
         throw new Error('Project can only be submitted for approved ideas');
       }

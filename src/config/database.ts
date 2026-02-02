@@ -12,18 +12,6 @@ import { Team } from '../entities/Team';
 import { Meeting } from '../entities/Meeting';
 import { Project } from '../entities/Project';
 
-console.log("=== Environment Variables ===");
-console.log("DB_HOST:", process.env.DB_HOST);
-console.log("DB_NAME:", process.env.DB_NAME);
-console.log("DB_USER:", process.env.DB_USER);
-console.log("DB_PASSWORD:", process.env.DB_PASSWORD ? "***" : "undefined");
-console.log("DB_PORT:", process.env.DB_PORT);
-console.log("NODE_ENV:", process.env.NODE_ENV);
-console.log("SMTP_HOST:", process.env.SMTP_HOST);
-console.log("SMTP_PORT:", process.env.SMTP_PORT);
-console.log("SMTP_USER:", process.env.SMTP_USER);
-console.log("SMTP_PASS:", process.env.SMTP_PASS ? "***" : "undefined");
-console.log("=============================");
 
 export const AppDataSource = new DataSource({
   type: 'postgres',
