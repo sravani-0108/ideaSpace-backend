@@ -32,7 +32,8 @@ export class HackathonController {
   async getAllHackathons(req: AuthRequest, res: Response): Promise<void> {
     try {
       const userRole = req.user?.role as string;
-      const hackathons = await hackathonService.getAllHackathons(userRole);
+      const userId = req.userId;
+      const hackathons = await hackathonService.getAllHackathons(userRole, userId);
 
       const response: ApiResponse<any> = {
         success: true,
@@ -53,7 +54,8 @@ export class HackathonController {
     try {
       const { id } = req.params;
       const userRole = req.user?.role as string;
-      const hackathon = await hackathonService.getHackathonById(id, userRole);
+      const userId = req.userId;
+      const hackathon = await hackathonService.getHackathonById(id, userRole, userId);
 
       const response: ApiResponse<any> = {
         success: true,
@@ -96,12 +98,14 @@ export class HackathonController {
     try {
       const { id } = req.params;
       const { status } = req.body;
+      const userId = req.userId;
+      const userRole = req.user?.role as string;
 
       if (!Object.values(HackathonStatus).includes(status)) {
         throw new Error('Invalid status');
       }
 
-      const hackathon = await hackathonService.updateHackathonStatus(id, status);
+      const hackathon = await hackathonService.updateHackathonStatus(id, status, userId, userRole);
 
       const response: ApiResponse<any> = {
         success: true,

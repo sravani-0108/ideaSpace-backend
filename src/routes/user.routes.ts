@@ -30,6 +30,16 @@ router.get('/:userId/comments', (req: Request, res: Response) => {
   commentController.getCommentsByUserId(req as any, res);
 });
 
+// Get all users (admin only) - for assigning as judges
+router.get('/all', authMiddleware, (req: Request, res: Response) => {
+  userController.getAllUsers(req as any, res);
+});
+
+// Get all judges (admin only) - backward compatibility, returns all users
+router.get('/judges/all', authMiddleware, (req: Request, res: Response) => {
+  userController.getAllJudges(req as any, res);
+});
+
 // Get user by ID (public profile) - must be last to avoid conflicts
 router.get('/:userId', (req: Request, res: Response) => {
   userController.getUserById(req as any, res);

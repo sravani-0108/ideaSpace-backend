@@ -134,7 +134,8 @@ export class AdminController {
       }
 
       const deadline = statusDeadline ? new Date(statusDeadline) : undefined;
-      const idea = await ideaService.updateIdeaStatus(id, status as IdeaStatus, deadline, adminId, rejectionReason);
+      const userRole = req.user?.role as string;
+      const idea = await ideaService.updateIdeaStatus(id, status as IdeaStatus, deadline, adminId, rejectionReason, userRole);
 
       const response: ApiResponse<any> = {
         success: true,

@@ -1,5 +1,6 @@
 import { AppDataSource } from '../config/database';
 import { User } from '../entities/User';
+import { UserRole } from '../enums/UserRole';
 import { UpdateProfileDto } from '../dto/user.dto';
 import path from 'path';
 import fs from 'fs';
@@ -86,6 +87,24 @@ export class UserService {
       isEmailVerified: user.isVerified,
       profilePicture: user.profilePicture ? `/api/uploads/profile-pictures/${user.profilePicture}` : null,
     };
+  }
+
+  async getAllUsers(): Promise<any[]> {
+    const users = await this.userRepository.find({
+      where: { role: UserRole.USER }, // Only get regular users, not admins
+      select: ['id', 'email', 'firstName', 'lastName', 'role', 'profilePicture'],
+      order: { email: 'ASC' },
+    });
+
+    return users.map(user => ({
+      ...user,
+      profilePicture: user.profilePicture ? `/api/uploads/profile-pictures/${user.profilePicture}` : null,
+    }));
+  }
+
+  async getAllJudges(): Promise<any[]> {
+    // Keep for backward compatibility, but now returns all users
+    return this.getAllUsers();
   }
 }
 

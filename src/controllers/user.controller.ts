@@ -111,5 +111,39 @@ export class UserController {
       res.status(404).json(response);
     }
   }
+
+  async getAllUsers(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      // Only admins can get list of users
+      if (req.user?.role !== 'ADMIN') {
+        const response: ApiResponse<null> = {
+          success: false,
+          message: 'Unauthorized',
+        };
+        res.status(403).json(response);
+        return;
+      }
+
+      const users = await userService.getAllUsers();
+
+      const response: ApiResponse<any> = {
+        success: true,
+        data: users,
+      };
+
+      res.status(200).json(response);
+    } catch (error: any) {
+      const response: ApiResponse<null> = {
+        success: false,
+        message: error.message || 'Failed to retrieve users',
+      };
+      res.status(400).json(response);
+    }
+  }
+
+  async getAllJudges(req: AuthRequest, res: Response): Promise<void> {
+    // Keep for backward compatibility, but now returns all users
+    return this.getAllUsers(req, res);
+  }
 }
 

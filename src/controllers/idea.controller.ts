@@ -48,7 +48,7 @@ export class IdeaController {
       const response: ApiResponse<any> = {
         success: true,
         data: idea,
-        message: userRole === UserRole.ADMIN || userRole === UserRole.JUDGE 
+        message: userRole === UserRole.ADMIN 
           ? 'Idea created and automatically published.' 
           : 'Idea submitted successfully. Waiting for admin approval.',
       };

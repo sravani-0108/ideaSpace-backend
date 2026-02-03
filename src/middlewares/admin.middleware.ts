@@ -17,10 +17,10 @@ export const adminMiddleware = (
     return;
   }
 
-  if (req.user.role !== UserRole.ADMIN && req.user.role !== UserRole.JUDGE) {
+  if (req.user.role !== UserRole.ADMIN) {
     const response: ApiResponse<null> = {
       success: false,
-      message: 'Admin or Judge access required',
+      message: 'Admin access required',
     };
     res.status(403).json(response);
     return;

@@ -61,5 +61,8 @@ export class Hackathon extends BaseEntityWithUpdate {
   @ManyToOne(() => User)
   @JoinColumn({ name: 'createdBy' })
   creator: User;
+
+  @Column('simple-array', { nullable: true })
+  judgeIds?: string[]; // Array of judge user IDs
 }
 

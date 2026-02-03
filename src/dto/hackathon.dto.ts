@@ -41,6 +41,9 @@ export class CreateHackathonDto {
   @IsEnum(HackathonStatus)
   @IsOptional()
   status?: HackathonStatus;
+
+  @IsOptional()
+  judgeIds?: string[]; // Array of judge user IDs
 }
 
 export class UpdateHackathonDto {

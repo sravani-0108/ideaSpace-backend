@@ -1,11 +1,14 @@
 import { AppDataSource } from '../config/database';
 import { Hackathon } from '../entities/Hackathon';
+import { User } from '../entities/User';
+import { UserRole } from '../enums/UserRole';
 import { HackathonStatus } from '../enums/HackathonStatus';
 import { HackathonType } from '../enums/HackathonType';
 import { CreateHackathonDto, UpdateHackathonDto } from '../dto/hackathon.dto';
 
 export class HackathonService {
   private hackathonRepository = AppDataSource.getRepository(Hackathon);
+  private userRepository = AppDataSource.getRepository(User);
 
   /**
    * Calculate hackathon status based on current date/time and hackathon dates/times
@@ -140,6 +143,24 @@ export class HackathonService {
       }
     }
 
+    // Validate users if provided (for assigning as judges)
+    if (createHackathonDto.judgeIds && createHackathonDto.judgeIds.length > 0) {
+      // Verify all judgeIds are valid users (not admins)
+      const users = await this.userRepository.find({
+        where: createHackathonDto.judgeIds.map(id => ({ id })),
+      });
+
+      if (users.length !== createHackathonDto.judgeIds.length) {
+        throw new Error('One or more selected users not found');
+      }
+
+      // Check that none are admins
+      const adminUsers = users.filter(u => u.role === UserRole.ADMIN);
+      if (adminUsers.length > 0) {
+        throw new Error('Admins cannot be assigned as judges');
+      }
+    }
+
     const hackathonData: Partial<Hackathon> = {
       title: createHackathonDto.title,
       purpose: createHackathonDto.purpose,
@@ -155,13 +176,18 @@ export class HackathonService {
       onlineLink: createHackathonDto.onlineLink || undefined,
       status: initialStatus,
       createdBy: userId,
+      judgeIds: createHackathonDto.judgeIds && createHackathonDto.judgeIds.length > 0 
+        ? createHackathonDto.judgeIds 
+        : undefined,
     };
     
     const hackathon = this.hackathonRepository.create(hackathonData);
     return await this.hackathonRepository.save(hackathon);
   }
 
-  async getAllHackathons(userRole?: string): Promise<Hackathon[]> {
+  async getAllHackathons(userRole?: string, userId?: string): Promise<Hackathon[]> {
+    // For all users (including judges), show all hackathons
+    // Action restrictions are handled in the frontend and individual action methods
     const hackathons = await this.hackathonRepository.find({
       relations: ['creator'],
       order: { startDate: 'DESC' },
@@ -182,8 +208,8 @@ export class HackathonService {
     );
 
     // Filter out DRAFT Hands-On hackathons for regular users
-    const isAdminOrJudge = userRole === 'ADMIN' || userRole === 'JUDGE';
-    if (isAdminOrJudge) {
+    const isAdmin = userRole === 'ADMIN';
+    if (isAdmin) {
       return updatedHackathons;
     }
 
@@ -196,7 +222,7 @@ export class HackathonService {
     });
   }
 
-  async getHackathonById(id: string, userRole?: string): Promise<Hackathon> {
+  async getHackathonById(id: string, userRole?: string, userId?: string): Promise<Hackathon> {
     const hackathon = await this.hackathonRepository.findOne({
       where: { id },
       relations: ['creator'],
@@ -207,8 +233,8 @@ export class HackathonService {
     }
 
     // Check if regular user is trying to access DRAFT Hands-On hackathon
-    const isAdminOrJudge = userRole === 'ADMIN' || userRole === 'JUDGE';
-    if (!isAdminOrJudge && hackathon.hackathonType === HackathonType.HANDS_ON && hackathon.status === HackathonStatus.DRAFT) {
+    const isAdmin = userRole === 'ADMIN';
+    if (!isAdmin && hackathon.hackathonType === HackathonType.HANDS_ON && hackathon.status === HackathonStatus.DRAFT) {
       throw new Error('Hackathon not found');
     }
 
@@ -252,11 +278,44 @@ export class HackathonService {
     return await this.updateStatusIfNeeded(savedHackathon);
   }
 
-  async updateHackathonStatus(id: string, status: HackathonStatus): Promise<Hackathon> {
+  async updateHackathonStatus(id: string, status: HackathonStatus, userId?: string, userRole?: string): Promise<Hackathon> {
     const hackathon = await this.hackathonRepository.findOne({ where: { id } });
 
     if (!hackathon) {
       throw new Error('Hackathon not found');
+    }
+
+    // For Hands-On hackathons, check if user is assigned judge or admin
+    if (hackathon.hackathonType === HackathonType.HANDS_ON) {
+      if (userRole === 'ADMIN') {
+        // Admins can always update status
+        // No check needed
+      } else if (userRole === 'USER' && userId) {
+        // Check if user is assigned as judge for this hackathon
+        // Handle judgeIds - it might be a string (from simple-array) or an array
+        let judgeIdsArray: string[] = [];
+        const judgeIdsValue = hackathon.judgeIds;
+        if (Array.isArray(judgeIdsValue)) {
+          judgeIdsArray = judgeIdsValue;
+        } else if (judgeIdsValue) {
+          // Handle case where it might be a string (from simple-array serialization)
+          const judgeIdsStr = String(judgeIdsValue);
+          if (judgeIdsStr.length > 0) {
+            judgeIdsArray = judgeIdsStr.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0);
+          }
+        }
+        
+        // If no judges are assigned, all users can perform actions
+        // If judges are assigned, only assigned users can perform actions
+        if (judgeIdsArray.length > 0) {
+          if (!judgeIdsArray.includes(userId)) {
+            throw new Error('You are not assigned to this hackathon. Only assigned judges can update hackathon status.');
+          }
+        }
+        // If judgeIds is empty or undefined, allow all users
+      } else {
+        throw new Error('Only admins and assigned judges can update hackathon status for Hands-On hackathons.');
+      }
     }
 
     hackathon.status = status;

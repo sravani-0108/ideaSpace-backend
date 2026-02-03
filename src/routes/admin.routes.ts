@@ -7,7 +7,13 @@ import { AuthRequest } from '../middlewares/auth.middleware';
 const router = Router();
 const adminController = new AdminController();
 
-// All admin routes require authentication and admin role
+// This route allows both admins and assigned judges (regular users assigned as judges)
+// So we only use authMiddleware, not adminMiddleware - must be defined BEFORE adminMiddleware
+router.patch('/ideas/:id/status', authMiddleware, (req: Request, res: Response) => {
+  adminController.updateIdeaStatus(req as AuthRequest, res);
+});
+
+// All other admin routes require authentication and admin role
 router.use(authMiddleware);
 router.use(adminMiddleware);
 
@@ -25,10 +31,6 @@ router.patch('/ideas/:id/reject', (req: Request, res: Response) => {
 
 router.patch('/ideas/:id/publish', (req: Request, res: Response) => {
   adminController.publishIdea(req as AuthRequest, res);
-});
-
-router.patch('/ideas/:id/status', (req: Request, res: Response) => {
-  adminController.updateIdeaStatus(req as AuthRequest, res);
 });
 
 export default router;

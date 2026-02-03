@@ -18,6 +18,24 @@ export class RegistrationService {
       throw new Error('Hackathon not found');
     }
 
+    // Prevent assigned judges from registering
+    // Handle judgeIds - it might be a string (from simple-array) or an array
+    let judgeIdsArray: string[] = [];
+    const judgeIdsValue = hackathon.judgeIds;
+    if (Array.isArray(judgeIdsValue)) {
+      judgeIdsArray = judgeIdsValue;
+    } else if (judgeIdsValue) {
+      // Handle case where it might be a string (from simple-array serialization)
+      const judgeIdsStr = String(judgeIdsValue);
+      if (judgeIdsStr.length > 0) {
+        judgeIdsArray = judgeIdsStr.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0);
+      }
+    }
+    
+    if (judgeIdsArray.length > 0 && judgeIdsArray.includes(userId)) {
+      throw new Error('You are assigned as a judge for this hackathon and cannot register as a participant');
+    }
+
     // Lazy import to avoid circular dependency
     const { HackathonService } = await import('./hackathon.service');
     const hackathonService = new HackathonService();

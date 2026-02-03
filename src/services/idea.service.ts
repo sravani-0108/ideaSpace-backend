@@ -91,11 +91,11 @@ export class IdeaService {
       // If registered, allow submission regardless of registration deadline
     }
 
-    // Admin/Judge ideas are automatically approved and published, regular users go to PENDING
+    // Admin ideas are automatically approved and published, regular users go to PENDING
     // For Hands-On hackathons, all ideas start as PENDING regardless of role
     const isHandsOnHackathon = !!createIdeaDto.hackathonId;
-    const isAdminOrJudge = userRole === UserRole.ADMIN || userRole === UserRole.JUDGE;
-    const status = (isAdminOrJudge && !isHandsOnHackathon) 
+    const isAdmin = userRole === UserRole.ADMIN;
+    const status = (isAdmin && !isHandsOnHackathon) 
       ? IdeaStatus.PUBLISHED 
       : IdeaStatus.PENDING;
     
@@ -111,8 +111,8 @@ export class IdeaService {
       zipFilePath: createIdeaDto.zipFilePath,
     };
 
-    // If admin/judge creates idea (and not for Hands-On hackathon), set approvedBy to admin's/judge's ID
-    if (isAdminOrJudge && !isHandsOnHackathon) {
+    // If admin creates idea (and not for Hands-On hackathon), set approvedBy to admin's ID
+    if (isAdmin && !isHandsOnHackathon) {
       ideaData.approvedBy = userId;
     }
 
@@ -279,13 +279,31 @@ export class IdeaService {
       throw new Error('Idea not found');
     }
 
-    // Check if user is Admin or Judge
-    const isAdminOrJudge = userRole === UserRole.ADMIN || userRole === UserRole.JUDGE;
+    // Check if user is Admin
+    const isAdmin = userRole === UserRole.ADMIN;
+
+    // Check if user is assigned as a judge for this hackathon (if idea belongs to a Hands-On hackathon)
+    let isAssignedJudge = false;
+    if (userId && idea.hackathon && idea.hackathon.hackathonType === HackathonType.HANDS_ON && idea.hackathon.judgeIds) {
+      // Handle judgeIds - it might be a string (from simple-array) or an array
+      let judgeIdsArray: string[] = [];
+      const judgeIdsValue = idea.hackathon.judgeIds;
+      if (Array.isArray(judgeIdsValue)) {
+        judgeIdsArray = judgeIdsValue;
+      } else {
+        // Handle case where it might be a string (from simple-array serialization)
+        const judgeIdsStr = String(judgeIdsValue);
+        if (judgeIdsStr.length > 0) {
+          judgeIdsArray = judgeIdsStr.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0);
+        }
+      }
+      isAssignedJudge = judgeIdsArray.length > 0 && judgeIdsArray.includes(userId);
+    }
 
     // Only return published ideas to regular users
     // But allow users to see their own PENDING/APPROVED ideas
-    // Admins/Judges can see all ideas regardless of status
-    if (idea.status !== IdeaStatus.PUBLISHED && !isAdminOrJudge) {
+    // Admins and assigned judges can see all ideas regardless of status
+    if (idea.status !== IdeaStatus.PUBLISHED && !isAdmin && !isAssignedJudge) {
       // If user is not the owner, don't show non-published ideas
       if (!userId || idea.userId !== userId) {
         throw new Error('Idea not found');
@@ -525,7 +543,8 @@ export class IdeaService {
     newStatus: IdeaStatus, 
     statusDeadline?: Date,
     adminId?: string,
-    rejectionReason?: string
+    rejectionReason?: string,
+    userRole?: string
   ): Promise<Idea> {
     const idea = await this.ideaRepository.findOne({ 
       where: { id },
@@ -534,6 +553,39 @@ export class IdeaService {
 
     if (!idea) {
       throw new Error('Idea not found');
+    }
+
+    // For Hands-On hackathon ideas, check if user is assigned judge or admin
+    if (idea.hackathon && idea.hackathon.hackathonType === HackathonType.HANDS_ON) {
+      if (userRole === 'ADMIN') {
+        // Admins can always update status
+        // No check needed
+      } else if (userRole === 'USER') {
+        // Check if user is assigned as judge for this hackathon
+        // Handle judgeIds - it might be a string (from simple-array) or an array
+        let judgeIdsArray: string[] = [];
+        const judgeIdsValue = idea.hackathon.judgeIds;
+        if (Array.isArray(judgeIdsValue)) {
+          judgeIdsArray = judgeIdsValue;
+        } else if (judgeIdsValue) {
+          // Handle case where it might be a string (from simple-array serialization)
+          const judgeIdsStr = String(judgeIdsValue);
+          if (judgeIdsStr.length > 0) {
+            judgeIdsArray = judgeIdsStr.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0);
+          }
+        }
+        
+        // If no judges are assigned, all users can perform actions
+        // If judges are assigned, only assigned users can perform actions
+        if (judgeIdsArray.length > 0) {
+          if (!judgeIdsArray.includes(adminId!)) {
+            throw new Error('You are not assigned to this hackathon. Only assigned judges can update idea status.');
+          }
+        }
+        // If judgeIds is empty or undefined, allow all users
+      } else {
+        throw new Error('Only admins and assigned judges can update idea status for Hands-On hackathons.');
+      }
     }
 
     // Validate status transition for Hands-On hackathons
@@ -709,8 +761,26 @@ export class IdeaService {
       ? now > new Date(hackathon.registrationDeadline)
       : true; // If no registration deadline, assume registration has ended
 
-    // Check if user is Admin or Judge
-    const isAdminOrJudge = userRole === UserRole.ADMIN || userRole === UserRole.JUDGE;
+    // Check if user is Admin
+    const isAdmin = userRole === UserRole.ADMIN;
+
+    // Check if user is assigned as a judge for this hackathon
+    let isAssignedJudge = false;
+    if (userId && hackathon.judgeIds) {
+      // Handle judgeIds - it might be a string (from simple-array) or an array
+      let judgeIdsArray: string[] = [];
+      const judgeIdsValue = hackathon.judgeIds;
+      if (Array.isArray(judgeIdsValue)) {
+        judgeIdsArray = judgeIdsValue;
+      } else {
+        // Handle case where it might be a string (from simple-array serialization)
+        const judgeIdsStr = String(judgeIdsValue);
+        if (judgeIdsStr.length > 0) {
+          judgeIdsArray = judgeIdsStr.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0);
+        }
+      }
+      isAssignedJudge = judgeIdsArray.length > 0 && judgeIdsArray.includes(userId);
+    }
 
     // Check if user is registered for this hackathon (for visibility rules)
     let isUserRegistered = false;
@@ -728,13 +798,14 @@ export class IdeaService {
       .where('idea.hackathonId = :hackathonId', { hackathonId });
 
     // Visibility rules:
-    // 1. Admin/Judge: Can see ALL ideas (including PENDING)
-    // 2. Regular users: 
+    // 1. Admin: Can see ALL ideas (including PENDING)
+    // 2. Assigned Judge: Can see ALL ideas (including PENDING)
+    // 3. Regular users: 
     //    - If in a team for this hackathon: Can see ideas from all team members
     //    - If not in a team: Can see ONLY their own ideas
 
-    if (isAdminOrJudge) {
-      // Admin/Judge can always see all ideas - no filter needed
+    if (isAdmin || isAssignedJudge) {
+      // Admin or assigned judge can always see all ideas - no filter needed
     } else {
       if (userId) {
         // Check if user is in a team for this hackathon
