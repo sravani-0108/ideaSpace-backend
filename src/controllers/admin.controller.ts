@@ -121,7 +121,7 @@ export class AdminController {
   async updateIdeaStatus(req: AuthRequest, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { status, statusDeadline } = req.body;
+      const { status, statusDeadline, rejectionReason } = req.body;
       const adminId = req.userId!;
 
       if (!status) {
@@ -134,7 +134,7 @@ export class AdminController {
       }
 
       const deadline = statusDeadline ? new Date(statusDeadline) : undefined;
-      const idea = await ideaService.updateIdeaStatus(id, status as IdeaStatus, deadline, adminId);
+      const idea = await ideaService.updateIdeaStatus(id, status as IdeaStatus, deadline, adminId, rejectionReason);
 
       const response: ApiResponse<any> = {
         success: true,

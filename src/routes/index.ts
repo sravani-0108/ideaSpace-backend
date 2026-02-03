@@ -7,9 +7,8 @@ import savedIdeaRoutes from './savedIdea.routes';
 import hackathonRoutes from './hackathon.routes';
 import registrationRoutes from './registration.routes';
 import teamRoutes from './team.routes';
-import meetingRoutes from './meeting.routes';
 import userRoutes from './user.routes';
-import projectRoutes from './project.routes';
+// import projectRoutes from './project.routes'; // Removed - projects table consolidated into ideas table
 
 const router = Router();
 
@@ -21,9 +20,8 @@ router.use('/', savedIdeaRoutes);
 router.use('/hackathons', hackathonRoutes);
 router.use('/', registrationRoutes);
 router.use('/', teamRoutes);
-router.use('/', meetingRoutes);
 router.use('/users', userRoutes);
-router.use('/projects', projectRoutes);
+// router.use('/projects', projectRoutes); // Removed - projects table consolidated into ideas table
 
 export default router;
 

@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { IdeaService } from '../services/idea.service';
-import { CreateIdeaDto } from '../dto/idea.dto';
+import { CreateIdeaDto, UpdateProjectDetailsDto } from '../dto/idea.dto';
 import { PaginationDto } from '../dto/common.dto';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { ApiResponse } from '../dto/common.dto';
@@ -259,6 +259,38 @@ export class IdeaController {
       const response: ApiResponse<null> = {
         success: false,
         message: error.message || 'Failed to fetch hackathon ideas',
+      };
+      res.status(400).json(response);
+    }
+  }
+
+  async updateProjectDetails(req: AuthRequest, res: Response): Promise<void> {
+    try {
+      const { ideaId } = req.params;
+      const updateDto: UpdateProjectDetailsDto = {
+        githubUrl: req.body.githubUrl,
+        demoVideoUrl: req.body.demoVideoUrl,
+        documentationUrl: req.body.documentationUrl,
+        zipFilePath: req.body.zipFilePath,
+        projectDescription: req.body.projectDescription,
+        implementationDetails: req.body.implementationDetails,
+        pitchVideoUrl: req.body.pitchVideoUrl,
+        presentationUrl: req.body.presentationUrl,
+      };
+
+      const idea = await ideaService.updateProjectDetails(ideaId, req.userId!, updateDto);
+
+      const response: ApiResponse<any> = {
+        success: true,
+        data: idea,
+        message: 'Project details updated successfully',
+      };
+
+      res.status(200).json(response);
+    } catch (error: any) {
+      const response: ApiResponse<null> = {
+        success: false,
+        message: error.message || 'Failed to update project details',
       };
       res.status(400).json(response);
     }

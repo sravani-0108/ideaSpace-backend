@@ -9,5 +9,4 @@ export { SavedIdea } from './SavedIdea';
 export { Hackathon } from './Hackathon';
 export { HackathonRegistration } from './HackathonRegistration';
 export { Team } from './Team';
-export { Meeting } from './Meeting';
 

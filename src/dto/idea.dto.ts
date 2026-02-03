@@ -49,3 +49,37 @@ export class ApproveIdeaDto {
   statusDeadline?: string;
 }
 
+export class UpdateProjectDetailsDto {
+  @IsUrl({}, { message: 'GitHub URL must be a valid URL' })
+  @IsOptional()
+  githubUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  demoVideoUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  documentationUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  zipFilePath?: string;
+
+  @IsString()
+  @IsOptional()
+  projectDescription?: string;
+
+  @IsString()
+  @IsOptional()
+  implementationDetails?: string;
+
+  @IsString()
+  @IsOptional()
+  pitchVideoUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  presentationUrl?: string;
+}
+

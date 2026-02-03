@@ -76,6 +76,39 @@ export class Idea extends BaseEntityWithUpdate {
   @Column({ nullable: true })
   zipFilePath?: string;
 
+  // Project submission fields (for ENHANCEMENTS and IMPLEMENTATION phases)
+  @Column({ nullable: true })
+  githubUrl?: string;
+
+  @Column({ nullable: true })
+  demoVideoUrl?: string;
+
+  @Column('text', { nullable: true })
+  projectDescription?: string;
+
+  @Column('text', { nullable: true })
+  implementationDetails?: string;
+
+  @Column({ nullable: true })
+  pitchVideoUrl?: string;
+
+  @Column({ nullable: true })
+  presentationUrl?: string;
+
+  // Review fields
+  @Column('text', { nullable: true })
+  judgeFeedback?: string;
+
+  @Column({ nullable: true })
+  reviewedBy?: string;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'reviewedBy' })
+  reviewer?: User;
+
+  @Column({ type: 'timestamp', nullable: true })
+  reviewedAt?: Date;
+
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'approvedBy' })
   approvedByUser?: User;

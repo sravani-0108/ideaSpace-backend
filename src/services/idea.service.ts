@@ -4,7 +4,6 @@ import { Comment } from '../entities/Comment';
 import { Hackathon } from '../entities/Hackathon';
 import { Project } from '../entities/Project';
 import { IdeaStatus } from '../enums/IdeaStatus';
-import { ProjectStatus } from '../enums/ProjectStatus';
 import { UserRole } from '../enums/UserRole';
 import { HackathonType } from '../enums/HackathonType';
 import { HackathonStatus } from '../enums/HackathonStatus';
@@ -525,7 +524,8 @@ export class IdeaService {
     id: string, 
     newStatus: IdeaStatus, 
     statusDeadline?: Date,
-    adminId?: string
+    adminId?: string,
+    rejectionReason?: string
   ): Promise<Idea> {
     const idea = await this.ideaRepository.findOne({ 
       where: { id },
@@ -578,6 +578,16 @@ export class IdeaService {
         idea.statusDeadline = null as any;
       }
 
+      // Handle rejection reason
+      if (newStatus === IdeaStatus.REJECTED) {
+        if (rejectionReason) {
+          idea.rejectionReason = rejectionReason;
+        }
+      } else {
+        // Clear rejection reason if status is not REJECTED
+        idea.rejectionReason = null as any;
+      }
+
       // Set approvedBy if not already set
       if (adminId && !idea.approvedBy) {
         idea.approvedBy = adminId;
@@ -587,6 +597,81 @@ export class IdeaService {
     }
 
     throw new Error(`Invalid status transition to ${newStatus}`);
+  }
+
+  /**
+   * Update project details for ideas in ENHANCEMENTS or IMPLEMENTATION phase
+   * This replaces the need for a separate projects table
+   */
+  async updateProjectDetails(
+    ideaId: string,
+    userId: string,
+    updateDto: {
+      githubUrl?: string;
+      demoVideoUrl?: string;
+      documentationUrl?: string;
+      zipFilePath?: string;
+      projectDescription?: string;
+      implementationDetails?: string;
+      pitchVideoUrl?: string;
+      presentationUrl?: string;
+    }
+  ): Promise<Idea> {
+    const idea = await this.ideaRepository.findOne({
+      where: { id: ideaId },
+      relations: ['hackathon', 'user'],
+    });
+
+    if (!idea) {
+      throw new Error('Idea not found');
+    }
+
+    // Only allow the idea owner to update project details
+    if (idea.userId !== userId) {
+      throw new Error('You can only update project details for your own ideas');
+    }
+
+    // Only allow updates for ENHANCEMENTS or IMPLEMENTATION phases
+    const allowedStatuses = [IdeaStatus.ENHANCEMENTS, IdeaStatus.IMPLEMENTATION];
+    if (!allowedStatuses.includes(idea.status)) {
+      throw new Error('Project details can only be updated during Enhancements or Implementation phase');
+    }
+
+    // Check if statusDeadline has passed
+    if (idea.statusDeadline) {
+      const now = new Date();
+      if (now > new Date(idea.statusDeadline)) {
+        throw new Error('The deadline for updating project details has passed');
+      }
+    }
+
+    // Update project fields
+    if (updateDto.githubUrl !== undefined) {
+      idea.githubUrl = updateDto.githubUrl;
+    }
+    if (updateDto.demoVideoUrl !== undefined) {
+      idea.demoVideoUrl = updateDto.demoVideoUrl;
+    }
+    if (updateDto.documentationUrl !== undefined) {
+      idea.documentationUrl = updateDto.documentationUrl;
+    }
+    if (updateDto.zipFilePath !== undefined) {
+      idea.zipFilePath = updateDto.zipFilePath;
+    }
+    if (updateDto.projectDescription !== undefined) {
+      idea.projectDescription = updateDto.projectDescription;
+    }
+    if (updateDto.implementationDetails !== undefined) {
+      idea.implementationDetails = updateDto.implementationDetails;
+    }
+    if (updateDto.pitchVideoUrl !== undefined) {
+      idea.pitchVideoUrl = updateDto.pitchVideoUrl;
+    }
+    if (updateDto.presentationUrl !== undefined) {
+      idea.presentationUrl = updateDto.presentationUrl;
+    }
+
+    return await this.ideaRepository.save(idea);
   }
 
   /**
@@ -635,12 +720,11 @@ export class IdeaService {
       isUserRegistered = await registrationService.isUserRegistered(hackathonId, userId);
     }
 
-    // Build query with project join to check project status
+    // Build query
     const queryBuilder = this.ideaRepository
       .createQueryBuilder('idea')
       .leftJoinAndSelect('idea.user', 'user')
       .leftJoinAndSelect('idea.hackathon', 'hackathon')
-      .leftJoin('projects', 'project', 'project.ideaId = idea.id')
       .where('idea.hackathonId = :hackathonId', { hackathonId });
 
     // Visibility rules:

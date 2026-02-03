@@ -73,6 +73,11 @@ router.get('/:id', (req: Request, res: Response) => {
   ideaController.getIdeaById(req as AuthRequest, res);
 });
 
+// Update project details for ENHANCEMENTS/IMPLEMENTATION phases
+router.patch('/:ideaId/project-details', (req: Request, res: Response) => {
+  ideaController.updateProjectDetails(req as AuthRequest, res);
+});
+
 // Nested routes for comments and likes
 router.use('/:ideaId/comments', commentRoutes);
 router.use('/:ideaId/like', likeRoutes);

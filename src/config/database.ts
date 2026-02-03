@@ -9,8 +9,6 @@ import { SavedIdea } from '../entities/SavedIdea';
 import { Hackathon } from '../entities/Hackathon';
 import { HackathonRegistration } from '../entities/HackathonRegistration';
 import { Team } from '../entities/Team';
-import { Meeting } from '../entities/Meeting';
-import { Project } from '../entities/Project';
 
 
 export const AppDataSource = new DataSource({
@@ -20,9 +18,9 @@ export const AppDataSource = new DataSource({
   username: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || 'password',
   database: process.env.DB_NAME || 'idea_platform',
-  synchronize: process.env.NODE_ENV !== 'production', // Auto-create tables in dev
+  synchronize: false, // Always use migrations instead of auto-sync
   logging: process.env.NODE_ENV === 'development',
-  entities: [User, EmailVerification, Idea, Comment, Like, Notification, SavedIdea, Hackathon, HackathonRegistration, Team, Meeting, Project],
+  entities: [User, EmailVerification, Idea, Comment, Like, Notification, SavedIdea, Hackathon, HackathonRegistration, Team],
   migrations: ['dist/migrations/**/*.js'],
   migrationsTableName: 'migrations',
   subscribers: [],
